@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import datetime
-import pytz
+import fear_and_greed # 引入新库
 
 # ==========================================
 # ⚙️ 策略参数
@@ -20,24 +20,30 @@ VIX_LEVEL_2 = 30
 # ==========================================
 # 🛠️ 核心功能
 # ==========================================
-@st.cache_data(ttl=3600)  # 缓存1小时，避免刷新过快被雅虎封锁
-def get_data():
+@st.cache_data(ttl=3600)
+def get_market_data():
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=500)
     
-    # 下载数据
+    # 1. 下载 SPY 和 VIX
     spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
     vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
     
-    # 清洗数据 (处理 MultiIndex)
-    if isinstance(spy.columns, pd.MultiIndex):
-        spy.columns = spy.columns.get_level_values(0)
-    if isinstance(vix.columns, pd.MultiIndex):
-        vix.columns = vix.columns.get_level_values(0)
-        
+    if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
+    if isinstance(vix.columns, pd.MultiIndex): vix.columns = vix.columns.get_level_values(0)
+    
     return spy, vix
 
-def analyze_market(spy, vix):
+@st.cache_data(ttl=3600)
+def get_cnn_index():
+    # 2. 抓取 CNN 恐慌指数 (增加容错机制)
+    try:
+        index_data = fear_and_greed.get()
+        return index_data.value, index_data.rating
+    except:
+        return None, "获取失败"
+
+def analyze_strategy(spy, vix):
     spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
     spy['RSI'] = ta.rsi(spy['Close'], length=RSI_PERIOD)
     
@@ -49,16 +55,16 @@ def analyze_market(spy, vix):
     
     is_bull = current_price > current_sma
     
+    # --- 策略核心逻辑 ---
     signal = "无操作 (Hold)"
     color = "gray"
     detail = "市场平稳，持有现有仓位。"
     
-    # 策略逻辑
     if not is_bull:
         if current_rsi > RSI_BEAR_EXIT:
             signal = "🛡️ 红色警报：防御！"
             color = "red"
-            detail = "SPY 跌破年线且反弹结束。清空所有 QLD，换回 SPY 或 现金！"
+            detail = "熊市反弹结束。清空所有 QLD，换回 SPY！"
         elif current_rsi < RSI_BEAR_ENTER and current_vix > 33:
             signal = "💎 钻石坑：博弈买入！"
             color = "green"
@@ -66,7 +72,7 @@ def analyze_market(spy, vix):
     elif current_rsi > RSI_EXIT_PROFIT:
         signal = "💰 止盈时刻"
         color = "orange"
-        detail = f"RSI 高达 {current_rsi:.1f}，情绪过热。卖出部分 QLD，落袋为安。"
+        detail = f"RSI 高达 {current_rsi:.1f}，过热。卖出部分 QLD。"
     elif is_bull:
         if current_rsi < RSI_BULL_ENTER:
             if current_vix > VIX_LEVEL_2:
@@ -82,43 +88,68 @@ def analyze_market(spy, vix):
                 color = "green"
                 detail = "牛市温和回调，买入 20% QLD。"
         else:
-            signal = "☕ 拿住 SPY/SGOV"
+            signal = "☕ 拿住 SPY"
             color = "blue"
-            detail = "牛市中，但没跌到位 (RSI > 55)。持有 SPY，不要追高，等待回调。"
+            detail = "牛市中，没跌到位。持有 SPY，不追高。"
 
     return locals()
 
 # ==========================================
 # 🎨 页面布局
 # ==========================================
-st.set_page_config(page_title="VixBooster", page_icon="📈")
-st.title("🚀 VixBooster 指挥台")
+st.set_page_config(page_title="VixBooster Pro", page_icon="🚀")
+st.title("🚀 VixBooster Pro 指挥台")
 
-if st.button('🔄 刷新数据'):
+if st.button('🔄 刷新所有数据'):
     st.cache_data.clear()
     st.rerun()
 
 try:
-    spy, vix = get_data()
-    res = analyze_market(spy, vix)
+    with st.spinner('正在连接华尔街 & CNN...'):
+        spy, vix = get_market_data()
+        cnn_val, cnn_rating = get_cnn_index()
+        res = analyze_strategy(spy, vix)
     
-    st.header(f"📅 日期: {res['last_date']}")
+    # 顶部状态栏
+    st.caption(f"📅 数据日期: {res['last_date']}")
     
+    # --- 核心信号卡片 ---
     if res['color'] == 'green': st.success(f"## {res['signal']}")
     elif res['color'] == 'red': st.error(f"## {res['signal']}")
     elif res['color'] == 'orange': st.warning(f"## {res['signal']}")
     else: st.info(f"## {res['signal']}")
-        
+    
     st.info(f"👉 **指令**: {res['detail']}")
     
     st.markdown("---")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("SPY", f"{res['current_price']:.0f}", f"MA200: {res['current_sma']:.0f}")
-    c2.metric("RSI (14)", f"{res['current_rsi']:.1f}", "买入线: 55")
-    c3.metric("VIX", f"{res['current_vix']:.1f}", "恐慌线: 20")
 
-    st.markdown("#### 📊 SPY 走势")
-    st.line_chart(spy['Close'].tail(50))
+    # --- 仪表盘 (新增 CNN) ---
+    c1, c2, c3, c4 = st.columns(4)
+    
+    c1.metric("SPY 价格", f"${res['current_price']:.0f}", 
+              delta=f"{res['current_price'] - res['current_sma']:.0f} (距年线)",
+              delta_color="normal" if res['is_bull'] else "inverse")
+              
+    c2.metric("RSI (14)", f"{res['current_rsi']:.1f}", "买点 < 55")
+    
+    c3.metric("VIX 恐慌", f"{res['current_vix']:.1f}", "爆点 > 30")
+    
+    # CNN 指数显示
+    if cnn_val:
+        c4.metric("CNN 贪婪", f"{cnn_val:.0f}", cnn_rating)
+    else:
+        c4.metric("CNN 贪婪", "N/A", "获取失败")
+
+    st.markdown("---")
+    
+    # --- 辅助判断 ---
+    st.markdown("#### 📊 辅助判断")
+    if cnn_val and cnn_val < 25:
+        st.error(f"⚠️ **CNN 显示极度恐慌 ({cnn_val:.0f})**: 这是一个非常好的左侧买入信号辅助！")
+    elif cnn_val and cnn_val > 75:
+        st.warning(f"⚠️ **CNN 显示极度贪婪 ({cnn_val:.0f})**: 注意风险，准备止盈。")
+    
+    st.line_chart(spy['Close'].tail(60))
 
 except Exception as e:
-    st.error(f"连接失败: {e}")
+    st.error(f"系统错误: {e}")
