@@ -4,11 +4,12 @@ import pandas as pd
 import pandas_ta as ta
 import datetime
 import requests
+import altair as alt  # 引入绘图库
 
 # ==========================================
-# 1. 页面配置 (必须放在第一行)
+# 1. 页面配置
 # ==========================================
-st.set_page_config(page_title="VixBooster Pro", page_icon="🚀")
+st.set_page_config(page_title="VixBooster Pro", page_icon="🚀", layout="wide") # 宽屏模式
 st.title("🚀 VixBooster Pro 指挥台")
 
 # ==========================================
@@ -29,23 +30,19 @@ VIX_LEVEL_2 = 30
 @st.cache_data(ttl=3600)
 def get_market_data():
     end_date = datetime.datetime.now()
-    start_date = end_date - datetime.timedelta(days=500)
+    #以此保证有足够数据计算200日均线
+    start_date = end_date - datetime.timedelta(days=400) 
     
-    # 下载数据
     spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
     vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
     
-    # 数据清洗
-    if isinstance(spy.columns, pd.MultiIndex): 
-        spy.columns = spy.columns.get_level_values(0)
-    if isinstance(vix.columns, pd.MultiIndex): 
-        vix.columns = vix.columns.get_level_values(0)
+    if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
+    if isinstance(vix.columns, pd.MultiIndex): vix.columns = vix.columns.get_level_values(0)
     
     return spy, vix
 
 @st.cache_data(ttl=3600)
 def get_cnn_index():
-    # 伪装成浏览器抓取 CNN
     url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -54,19 +51,15 @@ def get_cnn_index():
         r = requests.get(url, headers=headers, timeout=5)
         if r.status_code == 200:
             data = r.json()
-            score = data['fear_and_greed']['score']
-            rating = data['fear_and_greed']['rating']
-            return score, rating
+            return data['fear_and_greed']['score'], data['fear_and_greed']['rating']
     except:
         pass
     return None, "获取失败"
 
 def analyze_strategy(spy, vix):
-    # 计算指标
     spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
     spy['RSI'] = ta.rsi(spy['Close'], length=RSI_PERIOD)
     
-    # 获取最新数据
     current_price = spy['Close'].iloc[-1]
     current_sma = spy['SMA200'].iloc[-1]
     current_rsi = spy['RSI'].iloc[-1]
@@ -75,7 +68,6 @@ def analyze_strategy(spy, vix):
     
     is_bull = current_price > current_sma
     
-    # 策略逻辑
     signal = "无操作 (Hold)"
     color = "gray"
     detail = "市场平稳，持有现有仓位。"
@@ -115,20 +107,20 @@ def analyze_strategy(spy, vix):
     return locals()
 
 # ==========================================
-# 4. 主程序运行 (无 Try 锁，防止报错)
+# 4. 主程序运行
 # ==========================================
 if st.button('🔄 刷新数据'):
     st.cache_data.clear()
     st.rerun()
 
-with st.spinner('正在连接华尔街...'):
+with st.spinner('正在分析市场数据...'):
     spy, vix = get_market_data()
     cnn_val, cnn_rating = get_cnn_index()
     res = analyze_strategy(spy, vix)
 
-# 显示 UI
 st.caption(f"📅 数据日期: {res['last_date']}")
 
+# 信号卡片
 if res['color'] == 'green': st.success(f"## {res['signal']}")
 elif res['color'] == 'red': st.error(f"## {res['signal']}")
 elif res['color'] == 'orange': st.warning(f"## {res['signal']}")
@@ -138,17 +130,43 @@ st.info(f"👉 **指令**: {res['detail']}")
 
 st.markdown("---")
 
+# 核心数据
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("SPY 价格", f"${res['current_price']:.0f}", 
           delta=f"{res['current_price'] - res['current_sma']:.0f} (距年线)",
           delta_color="normal" if res['is_bull'] else "inverse")
 c2.metric("RSI (14)", f"{res['current_rsi']:.1f}", "买点 < 55")
 c3.metric("VIX 恐慌", f"{res['current_vix']:.1f}", "爆点 > 30")
-
 if cnn_val:
     c4.metric("CNN 贪婪", f"{cnn_val:.0f}", cnn_rating)
 else:
     c4.metric("CNN 贪婪", "N/A", "获取失败")
 
 st.markdown("---")
-st.line_chart(spy['Close'].tail(60))
+
+# ==========================================
+# 5. 高级图表区 (Altair 动态图)
+# ==========================================
+st.markdown("#### 📊 SPY 近120天走势 (动态坐标)")
+
+# 准备绘图数据：取最后120天
+chart_data = spy.tail(120).reset_index()
+# 确保列名正确
+if 'Date' not in chart_data.columns:
+    chart_data = chart_data.rename(columns={'index': 'Date'})
+
+# 绘制饱满的折线图 (scale=Zero:False 是关键)
+line_chart = alt.Chart(chart_data).mark_line(
+    color='#2962FF',  # 鲜艳的蓝色
+    strokeWidth=2
+).encode(
+    x=alt.X('Date', axis=alt.Axis(format='%m-%d', title='日期')),
+    y=alt.Y('Close', 
+            scale=alt.Scale(zero=False),  # 关键：不从0开始，自动适配波动范围
+            title='价格 ($)'),
+    tooltip=['Date', 'Close']
+).properties(
+    height=350  # 图表高度
+).interactive() # 允许缩放和拖拽
+
+st.altair_chart(line_chart, use_container_width=True)
