@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import datetime
-import fear_and_greed # 引入新库
+import requests # 使用原生请求库
 
 # ==========================================
 # ⚙️ 策略参数
@@ -25,10 +25,10 @@ def get_market_data():
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=500)
     
-    # 1. 下载 SPY 和 VIX
     spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
     vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
     
+    # 兼容性处理
     if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
     if isinstance(vix.columns, pd.MultiIndex): vix.columns = vix.columns.get_level_values(0)
     
@@ -36,12 +36,21 @@ def get_market_data():
 
 @st.cache_data(ttl=3600)
 def get_cnn_index():
-    # 2. 抓取 CNN 恐慌指数 (增加容错机制)
+    # 🔥 修复版：直接伪装浏览器请求 CNN 接口
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
     try:
-        index_data = fear_and_greed.get()
-        return index_data.value, index_data.rating
-    except:
-        return None, "获取失败"
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            score = data['fear_and_greed']['score']
+            rating = data['fear_and_greed']['rating']
+            return score, rating
+    except Exception as e:
+        print(f"CNN Error: {e}")
+    return None, "获取失败"
 
 def analyze_strategy(spy, vix):
     spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
@@ -55,7 +64,6 @@ def analyze_strategy(spy, vix):
     
     is_bull = current_price > current_sma
     
-    # --- 策略核心逻辑 ---
     signal = "无操作 (Hold)"
     color = "gray"
     detail = "市场平稳，持有现有仓位。"
@@ -90,7 +98,7 @@ def analyze_strategy(spy, vix):
         else:
             signal = "☕ 拿住 SPY"
             color = "blue"
-            detail = "牛市中，没跌到位。持有 SPY，不追高。"
+            detail = "牛市中，没跌到位 (RSI > 55)。持有 SPY，不追高。"
 
     return locals()
 
@@ -110,10 +118,8 @@ try:
         cnn_val, cnn_rating = get_cnn_index()
         res = analyze_strategy(spy, vix)
     
-    # 顶部状态栏
     st.caption(f"📅 数据日期: {res['last_date']}")
     
-    # --- 核心信号卡片 ---
     if res['color'] == 'green': st.success(f"## {res['signal']}")
     elif res['color'] == 'red': st.error(f"## {res['signal']}")
     elif res['color'] == 'orange': st.warning(f"## {res['signal']}")
@@ -123,33 +129,16 @@ try:
     
     st.markdown("---")
 
-    # --- 仪表盘 (新增 CNN) ---
     c1, c2, c3, c4 = st.columns(4)
-    
-    c1.metric("SPY 价格", f"${res['current_price']:.0f}", 
-              delta=f"{res['current_price'] - res['current_sma']:.0f} (距年线)",
-              delta_color="normal" if res['is_bull'] else "inverse")
-              
+    c1.metric("SPY", f"${res['current_price']:.0f}", 
+              delta=f"{res['current_price'] - res['current_sma']:.0f} (距年线)")
     c2.metric("RSI (14)", f"{res['current_rsi']:.1f}", "买点 < 55")
+    c3.metric("VIX", f"{res['current_vix']:.1f}", "爆点 > 30")
     
-    c3.metric("VIX 恐慌", f"{res['current_vix']:.1f}", "爆点 > 30")
-    
-    # CNN 指数显示
-    if cnn_val:
+    if cnn_val is not None:
         c4.metric("CNN 贪婪", f"{cnn_val:.0f}", cnn_rating)
     else:
-        c4.metric("CNN 贪婪", "N/A", "获取失败")
+        c4.metric("CNN 贪婪", "N/A", "连接超时")
 
     st.markdown("---")
-    
-    # --- 辅助判断 ---
-    st.markdown("#### 📊 辅助判断")
-    if cnn_val and cnn_val < 25:
-        st.error(f"⚠️ **CNN 显示极度恐慌 ({cnn_val:.0f})**: 这是一个非常好的左侧买入信号辅助！")
-    elif cnn_val and cnn_val > 75:
-        st.warning(f"⚠️ **CNN 显示极度贪婪 ({cnn_val:.0f})**: 注意风险，准备止盈。")
-    
-    st.line_chart(spy['Close'].tail(60))
-
-except Exception as e:
-    st.error(f"系统错误: {e}")
+    st.line_chart
