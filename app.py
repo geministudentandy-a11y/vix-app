@@ -5,6 +5,7 @@ import pandas_ta as ta
 import datetime
 import altair as alt
 import json
+import pytz  # 引入时区库
 from github import Github
 
 # ==========================================
@@ -12,6 +13,13 @@ from github import Github
 # ==========================================
 st.set_page_config(page_title="VixBooster ASX", page_icon="⚡", layout="wide")
 st.title("⚡ VixBooster (信号增强版)")
+
+# --- 辅助函数：日期转中文 ---
+def format_date_cn(dt):
+    """将日期转换为 '2026年1月31日，周六' 格式"""
+    weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    # 如果是 pandas Timestamp 或 datetime
+    return dt.strftime(f"%Y年%m月%d日，{weekdays[dt.weekday()]}")
 
 # --- GitHub 云存储函数 ---
 def load_data_from_github():
@@ -183,6 +191,25 @@ if st.button('🔄 刷新信号'):
 with st.spinner('正在分析华尔街数据...'):
     spy, vix, p_hgbl, p_ggus = get_market_data()
     res = calculate_strategy(spy, vix)
+    
+    # --- 日期处理 (新增功能) ---
+    # 1. 获取悉尼当前时间
+    tz_sydney = pytz.timezone('Australia/Sydney')
+    now_sydney = datetime.datetime.now(tz_sydney)
+    
+    # 2. 获取数据最后更新时间 (SPY的最后一天)
+    last_data_date = spy.index[-1]
+    
+    # 3. 顶部日期显示栏
+    col_d1, col_d2 = st.columns(2)
+    col_d1.info(f"📅 **今天 (悉尼)**: {format_date_cn(now_sydney)}")
+    
+    # 逻辑判断：如果数据滞后超过3天，显示黄色警告
+    days_diff = (now_sydney.date() - last_data_date.date()).days
+    if days_diff > 4: # 周末+假期可能3-4天
+        col_d2.warning(f"📉 **数据更新至**: {format_date_cn(last_data_date)} (数据滞后，请检查节假日)")
+    else:
+        col_d2.success(f"📉 **数据更新至**: {format_date_cn(last_data_date)} (数据新鲜)")
 
     # 计算交易
     h_qty = st.session_state.my_hgbl
@@ -252,5 +279,5 @@ sma = alt.Chart(chart_data).mark_line(color='orange', strokeDash=[5,5]).encode(
     x='Date', y='SMA200'
 )
 
-# 组合图表 (注意：这里去掉了 .interactive()，所以是锁定的)
+# 组合图表 (锁定版)
 st.altair_chart((line + sma), use_container_width=True)
