@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import datetime
-import requests
 import altair as alt
 import json
 from github import Github
@@ -11,16 +10,15 @@ from github import Github
 # ==========================================
 # 1. 页面配置 & 云端同步系统
 # ==========================================
-st.set_page_config(page_title="VixBooster ASX", page_icon="☁️", layout="wide")
-st.title("☁️ VixBooster (全平台云同步版)")
+st.set_page_config(page_title="VixBooster ASX", page_icon="⚡", layout="wide")
+st.title("⚡ VixBooster (极简云同步版)")
 
-# --- GitHub 云存储函数 ---
+# --- GitHub 云存储函数 (已移除 CNN) ---
 def load_data_from_github():
     """从 GitHub 读取 portfolio.json"""
     try:
-        # 必须确保 Streamlit Secrets 里配置了 GITHUB_TOKEN
         if "GITHUB_TOKEN" not in st.secrets:
-            return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
+            return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
             
         token = st.secrets["GITHUB_TOKEN"]
         g = Github(token)
@@ -30,13 +28,12 @@ def load_data_from_github():
             data = json.loads(contents.decoded_content.decode())
             return data
         except:
-            return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
+            return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
     except Exception as e:
-        # 静默失败，返回默认值，防止影响主程序
         print(f"云端读取错误: {e}")
-        return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
+        return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
 
-def save_data_to_github(hgbl, ggus, cash, cnn):
+def save_data_to_github(hgbl, ggus, cash):
     """保存数据到 GitHub"""
     try:
         token = st.secrets["GITHUB_TOKEN"]
@@ -46,8 +43,7 @@ def save_data_to_github(hgbl, ggus, cash, cnn):
         data = {
             "hgbl": hgbl, 
             "ggus": ggus, 
-            "cash": cash,
-            "cnn_manual": cnn
+            "cash": cash
         }
         content = json.dumps(data, indent=2)
         
@@ -70,37 +66,48 @@ if 'data_loaded' not in st.session_state:
         st.session_state.my_hgbl = cloud_data.get('hgbl', 0)
         st.session_state.my_ggus = cloud_data.get('ggus', 0)
         st.session_state.my_cash = cloud_data.get('cash', 300000.0)
-        st.session_state.cnn_manual = cloud_data.get('cnn_manual', 50)
         st.session_state.data_loaded = True
 
 # ==========================================
-# 2. 侧边栏：输入 (带保存按钮)
+# 2. 侧边栏：资产输入 & 策略参数 (已恢复)
 # ==========================================
 with st.sidebar:
     st.header("☁️ 云端资产库")
-    st.caption("修改后点击保存，手机/电脑即可同步。")
     
+    # 输入框
     new_hgbl = st.number_input("HGBL 持仓", min_value=0, step=100, value=st.session_state.my_hgbl)
     new_ggus = st.number_input("GGUS 持仓", min_value=0, step=100, value=st.session_state.my_ggus)
     new_cash = st.number_input("可用现金", min_value=0.0, step=1000.0, value=float(st.session_state.my_cash))
     
-    st.markdown("---")
-    use_manual_cnn = st.checkbox("手动修正 CNN", value=False)
-    new_cnn = st.session_state.cnn_manual
-    if use_manual_cnn:
-        new_cnn = st.number_input("输入 CNN 指数", 0, 100, st.session_state.cnn_manual)
-    
+    # 保存按钮
     if st.button("💾 保存并同步", type="primary"):
-        success = save_data_to_github(new_hgbl, new_ggus, new_cash, new_cnn)
+        success = save_data_to_github(new_hgbl, new_ggus, new_cash)
         if success:
             st.session_state.my_hgbl = new_hgbl
             st.session_state.my_ggus = new_ggus
             st.session_state.my_cash = new_cash
-            st.session_state.cnn_manual = new_cnn
             st.rerun()
 
+    st.markdown("---")
+    
+    # 恢复您喜欢的策略参数展示栏
+    st.header("⚙️ 核心策略参数")
+    st.info("""
+    **🟢 买入信号**
+    * **牛市 (线上)**: RSI < 70
+    * **熊市 (线下)**: RSI < 40 + VIX > 33
+    
+    **🔴 卖出/防御**
+    * **止盈**: RSI > 80
+    * **止损**: 熊市且 RSI > 35
+    
+    **🔥 VIX 加仓力度**
+    * **> 20**: 加仓至 40%
+    * **> 30**: 重仓至 60%
+    """)
+
 # ==========================================
-# 3. 策略参数
+# 3. 策略逻辑
 # ==========================================
 SMA_PERIOD = 200
 RSI_PERIOD = 14
@@ -139,19 +146,7 @@ def get_market_data():
     
     return spy, vix, p_hgbl, p_ggus
 
-@st.cache_data(ttl=600)
-def get_cnn_index():
-    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        r = requests.get(url, headers=headers, timeout=3)
-        if r.status_code == 200:
-            return int(r.json()['fear_and_greed']['score']), r.json()['fear_and_greed']['rating']
-    except:
-        pass
-    return None, None
-
-def calculate_strategy(spy, vix, cnn_val, cnn_rating):
+def calculate_strategy(spy, vix):
     spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
     spy['RSI'] = ta.rsi(spy['Close'], length=RSI_PERIOD)
     
@@ -206,22 +201,13 @@ def calculate_strategy(spy, vix, cnn_val, cnn_rating):
 # ==========================================
 # 5. 主程序 UI
 # ==========================================
-if st.button('🔄 刷新市场信号'):
+if st.button('🔄 刷新信号'):
     st.cache_data.clear()
     st.rerun()
 
-with st.spinner('正在同步全球市场...'):
+with st.spinner('正在分析数据...'):
     spy, vix, p_hgbl, p_ggus = get_market_data()
-    
-    auto_cnn, auto_rating = get_cnn_index()
-    if use_manual_cnn:
-        cnn_val = st.session_state.cnn_manual
-        cnn_rating = "Manual"
-    else:
-        cnn_val = auto_cnn if auto_cnn else st.session_state.cnn_manual
-        cnn_rating = auto_rating if auto_rating else "Fetch Failed"
-
-    res = calculate_strategy(spy, vix, cnn_val, cnn_rating)
+    res = calculate_strategy(spy, vix)
 
     h_qty = st.session_state.my_hgbl
     g_qty = st.session_state.my_ggus
@@ -256,25 +242,33 @@ else:
 
 st.markdown("---")
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3 = st.columns(3)
 c1.metric("总资产 (AUD)", f"${total_assets:,.0f}")
 c2.metric("GGUS 仓位", f"{curr_val/total_assets*100:.1f}%", f"目标 {res['target_pct']*100:.0f}%")
 c3.metric("RSI (SPY)", f"{res['curr_rsi']:.1f}", f"买点 < {RSI_BULL_ENTER}")
-c4.metric("CNN 贪婪", f"{cnn_val:.0f}", cnn_rating)
 
 st.caption(f"参考价格: HGBL ${p_hgbl:.2f} | GGUS ${p_ggus:.2f}")
 
 st.markdown("---")
-st.markdown("#### 📊 信号源 (SPY)")
+st.markdown("#### 📊 SPY 走势 (含200日均线)")
 
-# 修复了这里的画图代码
+# 准备绘图数据
 chart_data = spy.tail(120).reset_index()
 if 'Date' not in chart_data.columns: chart_data = chart_data.rename(columns={'index': 'Date'})
 
+# 1. 价格线 (蓝色)
 line = alt.Chart(chart_data).mark_line().encode(
     x=alt.X('Date', title='日期'),
-    y=alt.Y('Close', scale=alt.Scale(zero=False), title='价格 (USD)'), # 这里修好了
-    tooltip=['Date', 'Close']
-).interactive()
+    y=alt.Y('Close', scale=alt.Scale(zero=False), title='价格 (USD)'),
+    tooltip=['Date', 'Close', 'SMA200']
+)
 
-st.altair_chart(line, use_container_width=True)
+# 2. 200日均线 (橙色)
+sma_line = alt.Chart(chart_data).mark_line(color='orange', strokeDash=[5,5]).encode(
+    x='Date',
+    y='SMA200',
+    tooltip=['Date', 'SMA200']
+)
+
+# 组合图表
+st.altair_chart((line + sma_line).interactive(), use_container_width=True)
