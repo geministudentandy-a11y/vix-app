@@ -18,18 +18,22 @@ st.title("☁️ VixBooster (全平台云同步版)")
 def load_data_from_github():
     """从 GitHub 读取 portfolio.json"""
     try:
+        # 必须确保 Streamlit Secrets 里配置了 GITHUB_TOKEN
+        if "GITHUB_TOKEN" not in st.secrets:
+            return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
+            
         token = st.secrets["GITHUB_TOKEN"]
         g = Github(token)
-        repo = g.get_user().get_repo("vix-app") # 确保仓库名正确
+        repo = g.get_user().get_repo("vix-app") 
         try:
             contents = repo.get_contents("portfolio.json")
             data = json.loads(contents.decoded_content.decode())
             return data
         except:
-            # 如果文件不存在，返回默认值
             return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
     except Exception as e:
-        st.error(f"云端连接失败: {e}")
+        # 静默失败，返回默认值，防止影响主程序
+        print(f"云端读取错误: {e}")
         return {"hgbl": 0, "ggus": 0, "cash": 300000.0, "cnn_manual": 50}
 
 def save_data_to_github(hgbl, ggus, cash, cnn):
@@ -39,7 +43,6 @@ def save_data_to_github(hgbl, ggus, cash, cnn):
         g = Github(token)
         repo = g.get_user().get_repo("vix-app")
         
-        # 准备数据
         data = {
             "hgbl": hgbl, 
             "ggus": ggus, 
@@ -48,7 +51,6 @@ def save_data_to_github(hgbl, ggus, cash, cnn):
         }
         content = json.dumps(data, indent=2)
         
-        # 尝试更新或创建文件
         try:
             file = repo.get_contents("portfolio.json")
             repo.update_file(file.path, "Update portfolio", content, file.sha)
@@ -78,7 +80,6 @@ with st.sidebar:
     st.header("☁️ 云端资产库")
     st.caption("修改后点击保存，手机/电脑即可同步。")
     
-    # 输入框
     new_hgbl = st.number_input("HGBL 持仓", min_value=0, step=100, value=st.session_state.my_hgbl)
     new_ggus = st.number_input("GGUS 持仓", min_value=0, step=100, value=st.session_state.my_ggus)
     new_cash = st.number_input("可用现金", min_value=0.0, step=1000.0, value=float(st.session_state.my_cash))
@@ -89,7 +90,6 @@ with st.sidebar:
     if use_manual_cnn:
         new_cnn = st.number_input("输入 CNN 指数", 0, 100, st.session_state.cnn_manual)
     
-    # 保存按钮
     if st.button("💾 保存并同步", type="primary"):
         success = save_data_to_github(new_hgbl, new_ggus, new_cash, new_cnn)
         if success:
@@ -100,7 +100,7 @@ with st.sidebar:
             st.rerun()
 
 # ==========================================
-# 3. 策略与数据逻辑 (保持不变)
+# 3. 策略参数
 # ==========================================
 SMA_PERIOD = 200
 RSI_PERIOD = 14
@@ -115,12 +115,17 @@ TARGET_PCT_BASE = 0.20
 TARGET_PCT_BOOST_1 = 0.40
 TARGET_PCT_BOOST_2 = 0.60
 
+# ==========================================
+# 4. 数据获取
+# ==========================================
 @st.cache_data(ttl=3600)
 def get_market_data():
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=450)
+    
     spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
     vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
+    
     try:
         tickers = yf.download(["HGBL.AX", "GGUS.AX"], period="5d", progress=False)['Close']
         p_hgbl = tickers['HGBL.AX'].dropna().iloc[-1]
@@ -128,8 +133,10 @@ def get_market_data():
     except:
         p_hgbl = 0
         p_ggus = 0
+    
     if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
     if isinstance(vix.columns, pd.MultiIndex): vix.columns = vix.columns.get_level_values(0)
+    
     return spy, vix, p_hgbl, p_ggus
 
 @st.cache_data(ttl=600)
@@ -144,7 +151,7 @@ def get_cnn_index():
         pass
     return None, None
 
-def calculate_strategy(spy, vix, cnn_val, cnn_rating, h_qty, g_qty, cash):
+def calculate_strategy(spy, vix, cnn_val, cnn_rating):
     spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
     spy['RSI'] = ta.rsi(spy['Close'], length=RSI_PERIOD)
     
@@ -157,56 +164,47 @@ def calculate_strategy(spy, vix, cnn_val, cnn_rating, h_qty, g_qty, cash):
     target_pct = 0.0
     signal_name = "观望"
     reason = "无操作"
-    bg_color = "gray"
-
+    
     if not is_bull:
         if curr_rsi > RSI_BEAR_EXIT:
             target_pct = 0.0
             signal_name = "🛡️ 红色警报"
-            bg_color = "red"
             reason = "熊市反弹结束，清空进攻仓位。"
         elif curr_rsi < RSI_BEAR_ENTER and curr_vix > 33:
             target_pct = TARGET_PCT_BASE
             signal_name = "💎 钻石坑"
-            bg_color = "green"
             reason = "极度恐慌，抢反弹。"
         else:
             target_pct = 0.0
             signal_name = "🛡️ 熊市防御"
-            bg_color = "blue"
             reason = "熊市回避。"
     elif curr_rsi > RSI_EXIT_PROFIT:
         target_pct = TARGET_PCT_BASE
         signal_name = "💰 止盈减仓"
-        bg_color = "orange"
         reason = "RSI过热，获利了结。"
     elif is_bull:
         if curr_rsi < RSI_BULL_ENTER:
             if curr_vix > VIX_LEVEL_2:
                 target_pct = TARGET_PCT_BOOST_2
                 signal_name = "🚀 强力进攻 (60%)"
-                bg_color = "green"
                 reason = "VIX极高，重仓机会。"
             elif curr_vix > VIX_LEVEL_1:
                 target_pct = TARGET_PCT_BOOST_1
                 signal_name = "⚔️ 加力进攻 (40%)"
-                bg_color = "green"
                 reason = "VIX较高，加仓机会。"
             else:
                 target_pct = TARGET_PCT_BASE
                 signal_name = "🔫 常规进攻 (20%)"
-                bg_color = "green"
                 reason = "牛市常态持有。"
         else:
             target_pct = 0.0
             signal_name = "☕ 暂时休息"
-            bg_color = "blue"
             reason = "短期过热，暂不持仓。"
 
     return locals()
 
 # ==========================================
-# 4. 主程序 UI
+# 5. 主程序 UI
 # ==========================================
 if st.button('🔄 刷新市场信号'):
     st.cache_data.clear()
@@ -223,8 +221,7 @@ with st.spinner('正在同步全球市场...'):
         cnn_val = auto_cnn if auto_cnn else st.session_state.cnn_manual
         cnn_rating = auto_rating if auto_rating else "Fetch Failed"
 
-    # 使用 session_state 中的最新数据计算
-    res = calculate_strategy(spy, vix, cnn_val, cnn_rating, st.session_state.my_hgbl, st.session_state.my_ggus, st.session_state.my_cash)
+    res = calculate_strategy(spy, vix, cnn_val, cnn_rating)
 
     h_qty = st.session_state.my_hgbl
     g_qty = st.session_state.my_ggus
@@ -269,7 +266,15 @@ st.caption(f"参考价格: HGBL ${p_hgbl:.2f} | GGUS ${p_ggus:.2f}")
 
 st.markdown("---")
 st.markdown("#### 📊 信号源 (SPY)")
+
+# 修复了这里的画图代码
 chart_data = spy.tail(120).reset_index()
 if 'Date' not in chart_data.columns: chart_data = chart_data.rename(columns={'index': 'Date'})
-line = alt.Chart(chart_data).mark_line().encode(x='Date', y=alt.Scale(zero=False), tooltip=['Date', 'Close']).interactive()
+
+line = alt.Chart(chart_data).mark_line().encode(
+    x=alt.X('Date', title='日期'),
+    y=alt.Y('Close', scale=alt.Scale(zero=False), title='价格 (USD)'), # 这里修好了
+    tooltip=['Date', 'Close']
+).interactive()
+
 st.altair_chart(line, use_container_width=True)
