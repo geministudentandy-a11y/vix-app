@@ -2,5 +2,8 @@ streamlit
 yfinance
 pandas
 pandas_ta
-fear-and-greed
+requests
+altair
+PyGithub
+
 
