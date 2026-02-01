@@ -1,9 +1,7 @@
 streamlit
 yfinance
 pandas
-pandas_ta
-requests
-altair
-PyGithub
+plotly
+
 
 
