@@ -3,19 +3,15 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from pandas.tseries.offsets import BMonthEnd # 引入月末工作日逻辑
+from pandas.tseries.offsets import BMonthEnd
 
 # ==========================================
 # 0. 辅助函数：计算调仓倒计时 (月末版)
 # ==========================================
 def get_next_rebalance_date():
     today = pd.Timestamp(datetime.now().date())
-    
-    # 找到当前月份的最后一个工作日
-    # rollforward 逻辑：如果今天是月末，返回今天；如果今天是月初，返回本月月末
     offset = BMonthEnd()
     next_me = offset.rollforward(today)
-    
     return next_me.date()
 
 # ==========================================
@@ -39,7 +35,6 @@ st.markdown("""
 # ==========================================
 # 2. 侧边栏：倒计时 & 参数
 # ==========================================
-# --- 倒计时模块 (月末版) ---
 next_rebal_date = get_next_rebalance_date()
 days_left = (next_rebal_date - datetime.now().date()).days
 
@@ -73,12 +68,9 @@ def get_data_and_signal(mom_win, ma_win):
         
         data = data.ffill()
         
-        # 计算指标
         df = data.copy()
         df['SPY_MA'] = df['SPY'].rolling(window=ma_win).mean()
         df['QQQ_MOM'] = df['QQQ'].pct_change(mom_win)
-        
-        # 生成每日信号
         df['Signal'] = ((df['SPY'] > df['SPY_MA']) & (df['QQQ_MOM'] > 0)).astype(int)
         
         return df, data
@@ -98,7 +90,6 @@ if df is not None:
     latest = df.iloc[-1]
     latest_date = df.index[-1].strftime('%Y-%m-%d')
     
-    # 信号判定
     is_bull = latest['SPY'] > latest['SPY_MA']
     is_mom_up = latest['QQQ_MOM'] > 0
     is_risk_on = is_bull and is_mom_up
@@ -146,7 +137,7 @@ if df is not None:
 
     st.markdown("---")
 
-    # --- 第二部分：回测可视化 (含时间选择器) ---
+    # --- 第二部分：回测可视化 ---
     st.subheader("📈 策略净值曲线")
     
     backtest_df = df.copy().dropna()
@@ -157,7 +148,6 @@ if df is not None:
     backtest_df['Strat_Ret'] = backtest_df['Signal'].shift(1) * (backtest_df['Daily_Ret_QQQ'] * leverage) + \
                                (1 - backtest_df['Signal'].shift(1)) * backtest_df['Daily_Ret_SHY']
     
-    # 时间选择器
     time_options = ["20年", "10年", "5年", "1年", "YTD"]
     selected_range = st.radio("选择回测时间范围:", time_options, index=0, horizontal=True)
 
@@ -180,7 +170,6 @@ if df is not None:
     if not plot_df.empty:
         plot_df['Strat_Cum'] = (1 + plot_df['Strat_Ret']).cumprod()
         plot_df['SPY_Cum'] = (1 + plot_df['Daily_Ret_SPY']).cumprod()
-        
         plot_df['Strat_Cum'] = plot_df['Strat_Cum'] / plot_df['Strat_Cum'].iloc[0]
         plot_df['SPY_Cum'] = plot_df['SPY_Cum'] / plot_df['SPY_Cum'].iloc[0]
         
@@ -201,9 +190,18 @@ if df is not None:
             yaxis_title="净值 (归一化)", 
             yaxis_type=y_axis_type, 
             height=500,
-            hovermode="x unified"
+            hovermode="x unified",
+            # 【核心修改】锁死坐标轴
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True)
         )
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # 【核心修改】隐藏工具栏，禁止滚轮缩放
+        st.plotly_chart(
+            fig, 
+            use_container_width=True, 
+            config={'displayModeBar': False, 'scrollZoom': False}
+        )
     else:
         st.warning("该时间段内没有数据。")
 
