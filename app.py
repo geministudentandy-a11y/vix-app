@@ -37,18 +37,17 @@ st.sidebar.info("数据来源: Yahoo Finance\n延迟: 约 15 分钟")
 # ==========================================
 # 3. 核心逻辑函数
 # ==========================================
-@st.cache_data(ttl=3600) # 缓存数据1小时，避免频繁请求
+@st.cache_data(ttl=3600) 
 def get_data_and_signal(mom_win, ma_win):
     tickers = ['QQQ', 'SPY', 'SHY']
-    #以此为起点，拉取足够长的数据以计算MA
-    start_date = (datetime.now() - timedelta(days=ma_win * 2 + 500)).strftime('%Y-%m-%d')
+    # 始终拉取 2000年 至今的数据，确保长周期均线计算准确
+    start_date = '2000-01-01'
     
     try:
         data = yf.download(tickers, start=start_date, progress=False, auto_adjust=True)['Close']
         if data.empty:
             return None, None
         
-        # 填充数据
         data = data.ffill()
         
         # 计算指标
@@ -73,7 +72,6 @@ st.markdown("策略核心: **SPY > 200日均线** (大势) + **QQQ 95日动量 >
 df, raw_data = get_data_and_signal(mom_window, ma_window)
 
 if df is not None:
-    # 获取最新数据
     latest = df.iloc[-1]
     latest_date = df.index[-1].strftime('%Y-%m-%d')
     
@@ -82,7 +80,7 @@ if df is not None:
     is_mom_up = latest['QQQ_MOM'] > 0
     is_risk_on = is_bull and is_mom_up
     
-    # --- 第一部分：作战指令 (The Action) ---
+    # --- 第一部分：作战指令 ---
     st.subheader(f"📅 状态更新: {latest_date}")
     
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -112,7 +110,7 @@ if df is not None:
             delta=f"{(latest['SPY'] - latest['SPY_MA']):.2f} ({'牛市' if is_bull else '熊市'})",
             delta_color="normal"
         )
-        st.progress(min(1.0, max(0.0, 0.5 + (latest['SPY'] - latest['SPY_MA'])/latest['SPY_MA'] * 5))) # 简单的可视化条
+        st.progress(min(1.0, max(0.0, 0.5 + (latest['SPY'] - latest['SPY_MA'])/latest['SPY_MA'] * 5))) 
 
     with col3:
         st.metric(
@@ -121,42 +119,84 @@ if df is not None:
             delta=f"{latest['QQQ_MOM']*100:.2f}%",
             delta_color="normal"
         )
-        # 动量进度条
         st.progress(min(1.0, max(0.0, 0.5 + latest['QQQ_MOM'] * 2)))
 
     st.markdown("---")
 
-    # --- 第二部分：历史回测可视化 (The Proof) ---
-    st.subheader("📈 策略净值曲线 (实时模拟)")
+    # --- 第二部分：回测可视化 (含时间选择器) ---
+    st.subheader("📈 策略净值曲线")
     
-    # 快速计算净值
+    # 1. 全量计算 (先算出所有历史的收益率)
     backtest_df = df.copy().dropna()
     backtest_df['Daily_Ret_QQQ'] = backtest_df['QQQ'].pct_change()
     backtest_df['Daily_Ret_SHY'] = backtest_df['SHY'].pct_change()
     backtest_df['Daily_Ret_SPY'] = backtest_df['SPY'].pct_change()
     
-    # 策略收益计算 (昨天的信号决定今天的持仓)
-    # 如果 Signal=1, 收益 = QQQ涨跌 * 杠杆; 否则 = SHY涨跌
+    # 策略每日收益
     backtest_df['Strat_Ret'] = backtest_df['Signal'].shift(1) * (backtest_df['Daily_Ret_QQQ'] * leverage) + \
                                (1 - backtest_df['Signal'].shift(1)) * backtest_df['Daily_Ret_SHY']
     
-    # 累计净值
-    backtest_df['Strat_Cum'] = (1 + backtest_df['Strat_Ret']).cumprod()
-    backtest_df['SPY_Cum'] = (1 + backtest_df['Daily_Ret_SPY']).cumprod()
-    
-    # 绘图
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=backtest_df.index, y=backtest_df['Strat_Cum'], mode='lines', name=f'策略 ({leverage}x QQQ)', line=dict(color='blue', width=2)))
-    fig.add_trace(go.Scatter(x=backtest_df.index, y=backtest_df['SPY_Cum'], mode='lines', name='SPY 基准', line=dict(color='gray', dash='dot')))
-    
-    fig.update_layout(title="资金增长曲线 (2000 - 至今)", xaxis_title="年份", yaxis_title="净值 (对数坐标)", yaxis_type="log", height=500)
-    st.plotly_chart(fig, use_container_width=True)
+    # 2. 时间选择器
+    time_options = ["20年", "10年", "5年", "1年", "YTD"]
+    selected_range = st.radio("选择回测时间范围:", time_options, index=0, horizontal=True)
 
-    # --- 第三部分：最近信号记录 ---
+    # 3. 数据切片逻辑
+    end_date = backtest_df.index[-1]
+    start_date_plot = backtest_df.index[0] # 默认全部
+
+    if selected_range == "20年":
+        start_date_plot = end_date - pd.DateOffset(years=20)
+    elif selected_range == "10年":
+        start_date_plot = end_date - pd.DateOffset(years=10)
+    elif selected_range == "5年":
+        start_date_plot = end_date - pd.DateOffset(years=5)
+    elif selected_range == "1年":
+        start_date_plot = end_date - pd.DateOffset(years=1)
+    elif selected_range == "YTD":
+        start_date_plot = pd.Timestamp(f"{end_date.year}-01-01")
+    
+    # 过滤数据
+    plot_df = backtest_df[backtest_df.index >= start_date_plot].copy()
+
+    if not plot_df.empty:
+        # 4. 净值归一化 (让曲线从 1.0 开始，方便对比)
+        plot_df['Strat_Cum'] = (1 + plot_df['Strat_Ret']).cumprod()
+        plot_df['SPY_Cum'] = (1 + plot_df['Daily_Ret_SPY']).cumprod()
+        
+        # 归一化: 除以第一天的净值
+        plot_df['Strat_Cum'] = plot_df['Strat_Cum'] / plot_df['Strat_Cum'].iloc[0]
+        plot_df['SPY_Cum'] = plot_df['SPY_Cum'] / plot_df['SPY_Cum'].iloc[0]
+        
+        # 计算区间收益率用于展示
+        strat_perf = (plot_df['Strat_Cum'].iloc[-1] - 1) * 100
+        spy_perf = (plot_df['SPY_Cum'].iloc[-1] - 1) * 100
+
+        st.caption(f"区间收益 ({selected_range}): 策略 **{strat_perf:+.2f}%** vs SPY **{spy_perf:+.2f}%**")
+
+        # 5. 绘图
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], mode='lines', name=f'策略 ({leverage}x)', line=dict(color='blue', width=2)))
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], mode='lines', name='SPY 基准', line=dict(color='gray', dash='dot')))
+        
+        # YTD 或 短期看普通坐标，长期看对数坐标
+        y_axis_type = "linear" if selected_range in ["1年", "YTD"] else "log"
+        
+        fig.update_layout(
+            title=f"资金增长曲线 ({selected_range})", 
+            xaxis_title="日期", 
+            yaxis_title="净值 (归一化)", 
+            yaxis_type=y_axis_type, 
+            height=500,
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("该时间段内没有数据。")
+
+    # --- 第三部分：信号记录 ---
     st.subheader("📝 最近 10 天信号记录")
     recent_data = df[['SPY', 'SPY_MA', 'QQQ', 'QQQ_MOM', 'Signal']].tail(10).sort_index(ascending=False)
     
-    # 格式化显示
     def format_signal(val):
         return "🟢 进攻" if val == 1 else "🔴 防守"
     
