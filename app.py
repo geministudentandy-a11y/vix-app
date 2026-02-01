@@ -1,283 +1,170 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
-import datetime
-import altair as alt
-import json
-import pytz  # 引入时区库
-from github import Github
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 页面配置 & 云端同步
+# 1. 页面配置与样式
 # ==========================================
-st.set_page_config(page_title="VixBooster ASX", page_icon="⚡", layout="wide")
-st.title("⚡ VixBooster (信号增强版)")
+st.set_page_config(
+    page_title="QuantMo 动量策略指挥官",
+    page_icon="🚀",
+    layout="wide"
+)
 
-# --- 辅助函数：日期转中文 ---
-def format_date_cn(dt):
-    """将日期转换为 '2026年1月31日，周六' 格式"""
-    weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    # 如果是 pandas Timestamp 或 datetime
-    return dt.strftime(f"%Y年%m月%d日，{weekdays[dt.weekday()]}")
-
-# --- GitHub 云存储函数 ---
-def load_data_from_github():
-    try:
-        if "GITHUB_TOKEN" not in st.secrets:
-            return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
-        token = st.secrets["GITHUB_TOKEN"]
-        g = Github(token)
-        repo = g.get_user().get_repo("vix-app") 
-        try:
-            contents = repo.get_contents("portfolio.json")
-            data = json.loads(contents.decoded_content.decode())
-            return data
-        except:
-            return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
-    except:
-        return {"hgbl": 0, "ggus": 0, "cash": 300000.0}
-
-def save_data_to_github(hgbl, ggus, cash):
-    try:
-        token = st.secrets["GITHUB_TOKEN"]
-        g = Github(token)
-        repo = g.get_user().get_repo("vix-app")
-        data = {"hgbl": hgbl, "ggus": ggus, "cash": cash}
-        content = json.dumps(data, indent=2)
-        try:
-            file = repo.get_contents("portfolio.json")
-            repo.update_file(file.path, "Update portfolio", content, file.sha)
-        except:
-            repo.create_file("portfolio.json", "Init portfolio", content)
-        st.toast("✅ 云端同步成功！", icon="☁️")
-        return True
-    except Exception as e:
-        st.error(f"保存失败: {e}")
-        return False
-
-# 初始化
-if 'data_loaded' not in st.session_state:
-    with st.spinner('正在从云端拉取数据...'):
-        cloud_data = load_data_from_github()
-        st.session_state.my_hgbl = cloud_data.get('hgbl', 0)
-        st.session_state.my_ggus = cloud_data.get('ggus', 0)
-        st.session_state.my_cash = cloud_data.get('cash', 300000.0)
-        st.session_state.data_loaded = True
+# 自定义 CSS 让界面更专业
+st.markdown("""
+    <style>
+    .big-font { font-size: 24px !important; font-weight: bold; }
+    .signal-box { padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
+    .risk-on { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .risk-off { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 侧边栏：资产与参数
+# 2. 侧边栏：参数设置
 # ==========================================
-with st.sidebar:
-    st.header("☁️ 云端资产库")
-    new_hgbl = st.number_input("HGBL 持仓", min_value=0, step=100, value=st.session_state.my_hgbl)
-    new_ggus = st.number_input("GGUS 持仓", min_value=0, step=100, value=st.session_state.my_ggus)
-    new_cash = st.number_input("可用现金", min_value=0.0, step=1000.0, value=float(st.session_state.my_cash))
+st.sidebar.header("⚙️ 策略参数设置")
+mom_window = st.sidebar.number_input("QQQ 动量窗口 (天)", min_value=10, max_value=200, value=95)
+ma_window = st.sidebar.number_input("SPY 均线窗口 (天)", min_value=50, max_value=300, value=200)
+leverage = st.sidebar.selectbox("杠杆倍数 (模拟)", [1.0, 2.0, 3.0], index=1)
+
+st.sidebar.markdown("---")
+st.sidebar.info("数据来源: Yahoo Finance\n延迟: 约 15 分钟")
+
+# ==========================================
+# 3. 核心逻辑函数
+# ==========================================
+@st.cache_data(ttl=3600) # 缓存数据1小时，避免频繁请求
+def get_data_and_signal(mom_win, ma_win):
+    tickers = ['QQQ', 'SPY', 'SHY']
+    #以此为起点，拉取足够长的数据以计算MA
+    start_date = (datetime.now() - timedelta(days=ma_win * 2 + 500)).strftime('%Y-%m-%d')
     
-    if st.button("💾 保存并同步", type="primary"):
-        if save_data_to_github(new_hgbl, new_ggus, new_cash):
-            st.session_state.my_hgbl = new_hgbl
-            st.session_state.my_ggus = new_ggus
-            st.session_state.my_cash = new_cash
-            st.rerun()
+    try:
+        data = yf.download(tickers, start=start_date, progress=False, auto_adjust=True)['Close']
+        if data.empty:
+            return None, None
+        
+        # 填充数据
+        data = data.ffill()
+        
+        # 计算指标
+        df = data.copy()
+        df['SPY_MA'] = df['SPY'].rolling(window=ma_win).mean()
+        df['QQQ_MOM'] = df['QQQ'].pct_change(mom_win)
+        
+        # 生成每日信号 (1=Risk On, 0=Risk Off)
+        df['Signal'] = ((df['SPY'] > df['SPY_MA']) & (df['QQQ_MOM'] > 0)).astype(int)
+        
+        return df, data
+    except Exception as e:
+        st.error(f"数据获取失败: {e}")
+        return None, None
+
+# ==========================================
+# 4. 主界面逻辑
+# ==========================================
+st.title("🚀 QuantMo 动量择时指挥官")
+st.markdown("策略核心: **SPY > 200日均线** (大势) + **QQQ 95日动量 > 0** (进攻)")
+
+df, raw_data = get_data_and_signal(mom_window, ma_window)
+
+if df is not None:
+    # 获取最新数据
+    latest = df.iloc[-1]
+    latest_date = df.index[-1].strftime('%Y-%m-%d')
+    
+    # 信号判定
+    is_bull = latest['SPY'] > latest['SPY_MA']
+    is_mom_up = latest['QQQ_MOM'] > 0
+    is_risk_on = is_bull and is_mom_up
+    
+    # --- 第一部分：作战指令 (The Action) ---
+    st.subheader(f"📅 状态更新: {latest_date}")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        if is_risk_on:
+            st.markdown(f"""
+                <div class='signal-box risk-on'>
+                    <h1>🚀 全力进攻 (RISK ON)</h1>
+                    <h3>建议持仓: QLD (2倍 QQQ) 或 TQQQ (激进)</h3>
+                    <p>当前美股处于牛市且科技股动量强劲</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div class='signal-box risk-off'>
+                    <h1>🛡️ 空仓防守 (RISK OFF)</h1>
+                    <h3>建议持仓: SHY (短债) 或 SGOV (现金)</h3>
+                    <p>趋势破坏或动量不足，请持有现金等待机会</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    with col2:
+        st.metric(
+            label="SPY vs 200均线",
+            value=f"${latest['SPY']:.2f}",
+            delta=f"{(latest['SPY'] - latest['SPY_MA']):.2f} ({'牛市' if is_bull else '熊市'})",
+            delta_color="normal"
+        )
+        st.progress(min(1.0, max(0.0, 0.5 + (latest['SPY'] - latest['SPY_MA'])/latest['SPY_MA'] * 5))) # 简单的可视化条
+
+    with col3:
+        st.metric(
+            label=f"QQQ {mom_window}日动量",
+            value=f"${latest['QQQ']:.2f}",
+            delta=f"{latest['QQQ_MOM']*100:.2f}%",
+            delta_color="normal"
+        )
+        # 动量进度条
+        st.progress(min(1.0, max(0.0, 0.5 + latest['QQQ_MOM'] * 2)))
 
     st.markdown("---")
-    st.header("⚙️ 核心参数")
-    st.info("""
-    **🟢 买入标准**
-    * **牛市**: RSI < 70
-    * **熊市**: RSI < 40 + VIX > 33
+
+    # --- 第二部分：历史回测可视化 (The Proof) ---
+    st.subheader("📈 策略净值曲线 (实时模拟)")
     
-    **🔴 卖出标准**
-    * **止盈**: RSI > 80
-    * **止损**: 熊市 + RSI > 35
+    # 快速计算净值
+    backtest_df = df.copy().dropna()
+    backtest_df['Daily_Ret_QQQ'] = backtest_df['QQQ'].pct_change()
+    backtest_df['Daily_Ret_SHY'] = backtest_df['SHY'].pct_change()
+    backtest_df['Daily_Ret_SPY'] = backtest_df['SPY'].pct_change()
     
-    **🔥 VIX 仓位**
-    * **> 20**: 40% 仓位
-    * **> 30**: 60% 仓位
-    """)
-
-# ==========================================
-# 3. 策略逻辑
-# ==========================================
-SMA_PERIOD = 200
-RSI_PERIOD = 14
-RSI_BULL_ENTER = 70
-RSI_BEAR_ENTER = 40
-RSI_EXIT_PROFIT = 80
-RSI_BEAR_EXIT = 35
-VIX_LEVEL_1 = 20
-VIX_LEVEL_2 = 30
-TARGET_PCT_BASE = 0.20
-TARGET_PCT_BOOST_1 = 0.40
-TARGET_PCT_BOOST_2 = 0.60
-
-@st.cache_data(ttl=3600)
-def get_market_data():
-    end_date = datetime.datetime.now()
-    start_date = end_date - datetime.timedelta(days=450)
-    spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
-    vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
-    try:
-        tickers = yf.download(["HGBL.AX", "GGUS.AX"], period="5d", progress=False)['Close']
-        p_hgbl = tickers['HGBL.AX'].dropna().iloc[-1]
-        p_ggus = tickers['GGUS.AX'].dropna().iloc[-1]
-    except:
-        p_hgbl = 0
-        p_ggus = 0
-    if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
-    if isinstance(vix.columns, pd.MultiIndex): vix.columns = vix.columns.get_level_values(0)
-    return spy, vix, p_hgbl, p_ggus
-
-def calculate_strategy(spy, vix):
-    spy['SMA200'] = ta.sma(spy['Close'], length=SMA_PERIOD)
-    spy['RSI'] = ta.rsi(spy['Close'], length=RSI_PERIOD)
+    # 策略收益计算 (昨天的信号决定今天的持仓)
+    # 如果 Signal=1, 收益 = QQQ涨跌 * 杠杆; 否则 = SHY涨跌
+    backtest_df['Strat_Ret'] = backtest_df['Signal'].shift(1) * (backtest_df['Daily_Ret_QQQ'] * leverage) + \
+                               (1 - backtest_df['Signal'].shift(1)) * backtest_df['Daily_Ret_SHY']
     
-    curr_price = spy['Close'].iloc[-1]
-    curr_sma = spy['SMA200'].iloc[-1]
-    curr_rsi = spy['RSI'].iloc[-1]
-    curr_vix = vix['Close'].iloc[-1]
-    is_bull = curr_price > curr_sma
+    # 累计净值
+    backtest_df['Strat_Cum'] = (1 + backtest_df['Strat_Ret']).cumprod()
+    backtest_df['SPY_Cum'] = (1 + backtest_df['Daily_Ret_SPY']).cumprod()
     
-    # 策略判断
-    target_pct = 0.0
-    signal_name = "观望"
-    reason = "无操作"
+    # 绘图
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=backtest_df.index, y=backtest_df['Strat_Cum'], mode='lines', name=f'策略 ({leverage}x QQQ)', line=dict(color='blue', width=2)))
+    fig.add_trace(go.Scatter(x=backtest_df.index, y=backtest_df['SPY_Cum'], mode='lines', name='SPY 基准', line=dict(color='gray', dash='dot')))
     
-    if not is_bull:
-        if curr_rsi > RSI_BEAR_EXIT:
-            target_pct = 0.0
-            signal_name = "🛡️ 红色警报"
-            reason = "熊市反弹结束，清空进攻仓位。"
-        elif curr_rsi < RSI_BEAR_ENTER and curr_vix > 33:
-            target_pct = TARGET_PCT_BASE
-            signal_name = "💎 钻石坑"
-            reason = "极度恐慌，抢反弹。"
-        else:
-            target_pct = 0.0
-            signal_name = "🛡️ 熊市防御"
-            reason = "熊市回避。"
-    elif curr_rsi > RSI_EXIT_PROFIT:
-        target_pct = TARGET_PCT_BASE
-        signal_name = "💰 止盈减仓"
-        reason = "RSI过热，获利了结。"
-    elif is_bull:
-        if curr_rsi < RSI_BULL_ENTER:
-            if curr_vix > VIX_LEVEL_2:
-                target_pct = TARGET_PCT_BOOST_2
-                signal_name = "🚀 强力进攻 (60%)"
-                reason = "VIX极高，重仓机会。"
-            elif curr_vix > VIX_LEVEL_1:
-                target_pct = TARGET_PCT_BOOST_1
-                signal_name = "⚔️ 加力进攻 (40%)"
-                reason = "VIX较高，加仓机会。"
-            else:
-                target_pct = TARGET_PCT_BASE
-                signal_name = "🔫 常规进攻 (20%)"
-                reason = "牛市常态持有。"
-        else:
-            target_pct = 0.0
-            signal_name = "☕ 暂时休息"
-            reason = "短期过热，暂不持仓。"
-    return locals()
+    fig.update_layout(title="资金增长曲线 (2000 - 至今)", xaxis_title="年份", yaxis_title="净值 (对数坐标)", yaxis_type="log", height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
-# ==========================================
-# 4. 主程序 UI
-# ==========================================
-if st.button('🔄 刷新信号'):
-    st.cache_data.clear()
-    st.rerun()
-
-with st.spinner('正在分析华尔街数据...'):
-    spy, vix, p_hgbl, p_ggus = get_market_data()
-    res = calculate_strategy(spy, vix)
+    # --- 第三部分：最近信号记录 ---
+    st.subheader("📝 最近 10 天信号记录")
+    recent_data = df[['SPY', 'SPY_MA', 'QQQ', 'QQQ_MOM', 'Signal']].tail(10).sort_index(ascending=False)
     
-    # --- 日期处理 (新增功能) ---
-    # 1. 获取悉尼当前时间
-    tz_sydney = pytz.timezone('Australia/Sydney')
-    now_sydney = datetime.datetime.now(tz_sydney)
+    # 格式化显示
+    def format_signal(val):
+        return "🟢 进攻" if val == 1 else "🔴 防守"
     
-    # 2. 获取数据最后更新时间 (SPY的最后一天)
-    last_data_date = spy.index[-1]
+    recent_data['指令'] = recent_data['Signal'].apply(format_signal)
+    recent_data['QQQ_MOM'] = (recent_data['QQQ_MOM'] * 100).map('{:,.2f}%'.format)
+    recent_data['SPY状态'] = recent_data.apply(lambda x: "牛" if x['SPY'] > x['SPY_MA'] else "熊", axis=1)
     
-    # 3. 顶部日期显示栏
-    col_d1, col_d2 = st.columns(2)
-    col_d1.info(f"📅 **今天 (悉尼)**: {format_date_cn(now_sydney)}")
-    
-    # 逻辑判断：如果数据滞后超过3天，显示黄色警告
-    days_diff = (now_sydney.date() - last_data_date.date()).days
-    if days_diff > 4: # 周末+假期可能3-4天
-        col_d2.warning(f"📉 **数据更新至**: {format_date_cn(last_data_date)} (数据滞后，请检查节假日)")
-    else:
-        col_d2.success(f"📉 **数据更新至**: {format_date_cn(last_data_date)} (数据新鲜)")
+    st.table(recent_data[['指令', 'SPY状态', 'QQQ_MOM']])
 
-    # 计算交易
-    h_qty = st.session_state.my_hgbl
-    g_qty = st.session_state.my_ggus
-    cash = st.session_state.my_cash
-    total_assets = (h_qty * p_hgbl) + (g_qty * p_ggus) + cash
-    target_val = total_assets * res['target_pct']
-    curr_val = g_qty * p_ggus
-    diff = target_val - curr_val
-    
-    trade_text = "✅ 仓位完美 (Hold)"
-    trade_amt = 0
-    if abs(diff) > 1000:
-        qty = int(abs(diff) / p_ggus) if p_ggus > 0 else 0
-        trade_amt = abs(diff)
-        if diff > 0: trade_text = f"🔵 买入 {qty} 股 GGUS"
-        else: trade_text = f"🔴 卖出 {qty} 股 GGUS"
-
-# --- 核心显示区 ---
-if "买入" in trade_text: st.success(f"### {trade_text}\n**金额: ${trade_amt:,.0f}** | 原因: {res['reason']}")
-elif "卖出" in trade_text: st.warning(f"### {trade_text}\n**金额: ${trade_amt:,.0f}** | 原因: {res['reason']}")
-else: st.info(f"### {trade_text}\n原因: {res['reason']}")
-
-st.markdown("---")
-
-# Row 1: 个人资产 (AUD)
-st.markdown("##### 💼 个人资产 (AUD)")
-c1, c2 = st.columns(2)
-c1.metric("总资产", f"${total_assets:,.0f}")
-c2.metric("GGUS 仓位", f"{curr_val/total_assets*100:.1f}%", f"目标 {res['target_pct']*100:.0f}%")
-
-st.markdown("---")
-
-# Row 2: 市场信号 (USD)
-st.markdown("##### 📡 市场信号 (SPY/VIX)")
-m1, m2, m3 = st.columns(3)
-
-# 指标 1: SPY 价格与年线距离
-dist_sma = res['curr_price'] - res['curr_sma']
-m1.metric("SPY 价格", f"${res['curr_price']:.0f}", 
-          delta=f"{dist_sma:.0f} (距年线)", 
-          delta_color="normal" if res['is_bull'] else "inverse")
-
-# 指标 2: RSI
-m2.metric("RSI (14)", f"{res['curr_rsi']:.1f}", f"买点 < {RSI_BULL_ENTER}")
-
-# 指标 3: VIX
-m3.metric("VIX 恐慌", f"{res['curr_vix']:.1f}", "爆发 > 20")
-
-st.caption(f"澳股参考价: HGBL ${p_hgbl:.2f} | GGUS ${p_ggus:.2f}")
-
-st.markdown("---")
-st.markdown("#### 📊 SPY 走势 (含200日均线)")
-
-# 图表
-chart_data = spy.tail(120).reset_index()
-if 'Date' not in chart_data.columns: chart_data = chart_data.rename(columns={'index': 'Date'})
-
-# K线(收盘价)
-line = alt.Chart(chart_data).mark_line().encode(
-    x=alt.X('Date', title='日期'),
-    y=alt.Y('Close', scale=alt.Scale(zero=False), title='价格 (USD)'),
-    tooltip=['Date', 'Close', 'SMA200']
-)
-# 均线(橙色)
-sma = alt.Chart(chart_data).mark_line(color='orange', strokeDash=[5,5]).encode(
-    x='Date', y='SMA200'
-)
-
-# 组合图表 (锁定版)
-st.altair_chart((line + sma), use_container_width=True)
+else:
+    st.warning("正在初始化数据，请稍候...")
