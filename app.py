@@ -22,7 +22,7 @@ def get_rebalance_info():
 # ==========================================
 # 1. 页面配置
 # ==========================================
-st.set_page_config(page_title="QuantMo 终极指挥官", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="Lazy Panda", page_icon="🐼", layout="wide")
 
 # CSS 优化：增强手机端可读性
 st.markdown("""
@@ -40,7 +40,7 @@ st.markdown("""
 # ==========================================
 # 2. 侧边栏：仅保留参数 (手机上会被折叠)
 # ==========================================
-st.sidebar.header("⚙️ 黄金参数")
+st.sidebar.header("🐼 熊猫参数")
 mom_window = st.sidebar.number_input("QQQ 动量 (天)", value=95, disabled=True)
 ma_window = st.sidebar.number_input("SPY 均线 (天)", value=200, disabled=True)
 leverage = st.sidebar.selectbox("模拟杠杆", [1.0, 2.0, 3.0], index=1)
@@ -71,16 +71,16 @@ df, raw = get_data_and_signal()
 # ==========================================
 # 4. 主界面 (手机端核心区)
 # ==========================================
-st.title("🏛️ QuantMo 指挥官")
+st.title("🐼 Lazy Panda")
 
 # 【核心修改】将倒计时直接放在标题下方，手机第一眼就能看到
 next_rebal, is_today_rebal, days_left = get_rebalance_info()
 
 if is_today_rebal:
-    st.error(f"🔔 **警报：就是今天！** (本月收官日)\n请在收盘前(15:50)执行操作。")
+    st.error(f"🔔 **醒醒！该干活了！** (本月收官日)\n请在收盘前(15:50)执行操作。")
 else:
     # 使用 st.info 蓝色横幅，醒目且占地小
-    st.info(f"💤 **睡觉模式** | 下次调仓: **{next_rebal}** (还有 {days_left} 天)")
+    st.info(f"💤 **冬眠模式** | 下次醒来: **{next_rebal}** (还有 {days_left} 天)")
 
 if df is not None:
     latest = df.iloc[-1]
@@ -90,10 +90,9 @@ if df is not None:
     is_mom_up = latest['QQQ_MOM'] > 0
     raw_signal_risk_on = is_bull and is_mom_up
     
-    st.caption(f"数据更新: {latest_date}")
+    st.caption(f"环境监测: {latest_date}")
     
     # --- 指挥中心 ---
-    # 手机端会自动把 col1 和 col2 变成上下排列，这里不需要改代码，Streamlit 会自动适配
     col1, col2 = st.columns([3, 2])
     
     with col1:
@@ -101,28 +100,28 @@ if df is not None:
             if raw_signal_risk_on:
                 st.markdown(f"""
                     <div class='signal-box risk-on'>
-                        <h1>🟢 买入 / 持有</h1>
-                        <p><b>今天是调仓日</b>，市场健康。</p>
+                        <h1>🎋 吃竹子 (买入)</h1>
+                        <p><b>今天是调仓日</b>，森林很安全。</p>
                         <p>目标: <b>200% QQQ (QLD)</b></p>
                     </div>
                 """, unsafe_allow_html=True)
             else:
                 st.markdown(f"""
                     <div class='signal-box risk-off'>
-                        <h1>🔴 清仓 / 防守</h1>
-                        <p><b>今天是调仓日</b>，风控触发。</p>
+                        <h1>🛡️ 躲进洞里 (空仓)</h1>
+                        <p><b>今天是调仓日</b>，外面有风暴。</p>
                         <p>目标: <b>100% 现金/SHY</b></p>
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            status_text = "牛市 (健康)" if raw_signal_risk_on else "熊市 (脆弱)"
+            status_text = "牛市 (安全)" if raw_signal_risk_on else "熊市 (危险)"
             color_class = "risk-on" if raw_signal_risk_on else "risk-off"
             
             st.markdown(f"""
                 <div class='signal-box wait-mode'>
-                    <h1>💤 建议: 睡觉 (Wait)</h1>
-                    <p>非调仓日，无视波动。</p>
-                    <p>当前状态: <span class='{color_class}'><b>{status_text}</b></span></p>
+                    <h1>💤 建议: 继续睡 (Wait)</h1>
+                    <p>今天不是月底，不要乱动。</p>
+                    <p>森林状态: <span class='{color_class}'><b>{status_text}</b></span></p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -137,7 +136,7 @@ if df is not None:
     st.markdown("---")
 
     # --- 曲线图 ---
-    st.subheader("📈 资金曲线")
+    st.subheader("📈 熊猫成长曲线")
     
     backtest_df = df.copy().dropna()
     backtest_df['Daily_Ret_QQQ'] = backtest_df['QQQ'].pct_change()
@@ -167,16 +166,16 @@ if df is not None:
         
         strat_perf = (plot_df['Strat_Cum'].iloc[-1] - 1) * 100
         spy_perf = (plot_df['SPY_Cum'].iloc[-1] - 1) * 100
-        st.caption(f"期间收益: 策略 **{strat_perf:+.1f}%** vs SPY **{spy_perf:+.1f}%**")
+        st.caption(f"期间收益: 熊猫 **{strat_perf:+.1f}%** vs SPY **{spy_perf:+.1f}%**")
 
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], name=f'策略', line=dict(color='#2980b9', width=2)))
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], name=f'Panda', line=dict(color='#2980b9', width=2)))
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], name='SPY', line=dict(color='gray', dash='dot')))
         
         is_log = selected_range not in ["1年", "YTD"]
         fig.update_layout(
-            height=400, # 手机上稍微调小一点高度
-            margin=dict(l=10, r=10, t=30, b=10), # 减少边距，利用手机屏幕
+            height=400, 
+            margin=dict(l=10, r=10, t=30, b=10),
             xaxis=dict(fixedrange=True), 
             yaxis=dict(type='log' if is_log else 'linear', fixedrange=True), 
             hovermode="x unified",
@@ -185,4 +184,4 @@ if df is not None:
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 else:
-    st.info("正在加载数据...")
+    st.info("🐼 熊猫正在寻找竹子 (加载数据中)...")
