@@ -167,4 +167,22 @@ if df is not None:
         
         strat_perf = (plot_df['Strat_Cum'].iloc[-1] - 1) * 100
         spy_perf = (plot_df['SPY_Cum'].iloc[-1] - 1) * 100
-        st.caption(f"期间收益: 策略 **{strat_
+        st.caption(f"期间收益: 策略 **{strat_perf:+.1f}%** vs SPY **{spy_perf:+.1f}%**")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], name=f'策略', line=dict(color='#2980b9', width=2)))
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], name='SPY', line=dict(color='gray', dash='dot')))
+        
+        is_log = selected_range not in ["1年", "YTD"]
+        fig.update_layout(
+            height=400, # 手机上稍微调小一点高度
+            margin=dict(l=10, r=10, t=30, b=10), # 减少边距，利用手机屏幕
+            xaxis=dict(fixedrange=True), 
+            yaxis=dict(type='log' if is_log else 'linear', fixedrange=True), 
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+else:
+    st.info("正在加载数据...")
