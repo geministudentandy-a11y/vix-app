@@ -152,4 +152,73 @@ if df is not None:
     backtest_df = df.copy().dropna()
     backtest_df['Daily_Ret_QQQ'] = backtest_df['QQQ'].pct_change()
     backtest_df['Daily_Ret_SHY'] = backtest_df['SHY'].pct_change()
-    backtest_df['Daily_Ret_SPY'] = back
+    backtest_df['Daily_Ret_SPY'] = backtest_df['SPY'].pct_change()
+    
+    backtest_df['Strat_Ret'] = backtest_df['Signal'].shift(1) * (backtest_df['Daily_Ret_QQQ'] * leverage) + \
+                               (1 - backtest_df['Signal'].shift(1)) * backtest_df['Daily_Ret_SHY']
+    
+    # 时间选择器
+    time_options = ["20年", "10年", "5年", "1年", "YTD"]
+    selected_range = st.radio("选择回测时间范围:", time_options, index=0, horizontal=True)
+
+    end_date = backtest_df.index[-1]
+    start_date_plot = backtest_df.index[0] 
+
+    if selected_range == "20年":
+        start_date_plot = end_date - pd.DateOffset(years=20)
+    elif selected_range == "10年":
+        start_date_plot = end_date - pd.DateOffset(years=10)
+    elif selected_range == "5年":
+        start_date_plot = end_date - pd.DateOffset(years=5)
+    elif selected_range == "1年":
+        start_date_plot = end_date - pd.DateOffset(years=1)
+    elif selected_range == "YTD":
+        start_date_plot = pd.Timestamp(f"{end_date.year}-01-01")
+    
+    plot_df = backtest_df[backtest_df.index >= start_date_plot].copy()
+
+    if not plot_df.empty:
+        plot_df['Strat_Cum'] = (1 + plot_df['Strat_Ret']).cumprod()
+        plot_df['SPY_Cum'] = (1 + plot_df['Daily_Ret_SPY']).cumprod()
+        
+        plot_df['Strat_Cum'] = plot_df['Strat_Cum'] / plot_df['Strat_Cum'].iloc[0]
+        plot_df['SPY_Cum'] = plot_df['SPY_Cum'] / plot_df['SPY_Cum'].iloc[0]
+        
+        strat_perf = (plot_df['Strat_Cum'].iloc[-1] - 1) * 100
+        spy_perf = (plot_df['SPY_Cum'].iloc[-1] - 1) * 100
+
+        st.caption(f"区间收益 ({selected_range}): 策略 **{strat_perf:+.2f}%** vs SPY **{spy_perf:+.2f}%**")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], mode='lines', name=f'策略 ({leverage}x)', line=dict(color='blue', width=2)))
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], mode='lines', name='SPY 基准', line=dict(color='gray', dash='dot')))
+        
+        y_axis_type = "linear" if selected_range in ["1年", "YTD"] else "log"
+        
+        fig.update_layout(
+            title=f"资金增长曲线 ({selected_range})", 
+            xaxis_title="日期", 
+            yaxis_title="净值 (归一化)", 
+            yaxis_type=y_axis_type, 
+            height=500,
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("该时间段内没有数据。")
+
+    # --- 第三部分：信号记录 ---
+    st.subheader("📝 最近 10 天信号记录")
+    recent_data = df[['SPY', 'SPY_MA', 'QQQ', 'QQQ_MOM', 'Signal']].tail(10).sort_index(ascending=False)
+    
+    def format_signal(val):
+        return "🟢 进攻" if val == 1 else "🔴 防守"
+    
+    recent_data['指令'] = recent_data['Signal'].apply(format_signal)
+    recent_data['QQQ_MOM'] = (recent_data['QQQ_MOM'] * 100).map('{:,.2f}%'.format)
+    recent_data['SPY状态'] = recent_data.apply(lambda x: "牛" if x['SPY'] > x['SPY_MA'] else "熊", axis=1)
+    
+    st.table(recent_data[['指令', 'SPY状态', 'QQQ_MOM']])
+
+else:
+    st.warning("正在初始化数据，请稍候...")
