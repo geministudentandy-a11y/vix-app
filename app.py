@@ -242,4 +242,53 @@ if df is not None:
     
     audit_logs = []
 
-    for i in
+    for i in range(1, len(monthly_audit)):
+        curr_date = monthly_audit.index[i]
+        curr_row = monthly_audit.iloc[i]
+        prev_row = monthly_audit.iloc[i-1]
+        
+        spy_price = curr_row['SPY']
+        spy_ma = curr_row['SPY_MA']
+        qqq_mom = curr_row['QQQ_MOM']
+        
+        curr_signal = int(curr_row['Signal'])
+        prev_signal = int(prev_row['Signal'])
+        
+        if curr_signal == 1 and prev_signal == 0:
+            action = "🟢 买入 (QLD)"
+        elif curr_signal == 0 and prev_signal == 1:
+            action = "🔴 卖出 (Cash)"
+        elif curr_signal == 1 and prev_signal == 1:
+            action = "🔒 锁仓 (Hold)"
+        else:
+            action = "🛡️ 空仓 (Wait)"
+
+        reason_spy = "✅ SPY > 200线" if (spy_price > spy_ma) else f"❌ SPY破位 ({spy_price:.0f}<{spy_ma:.0f})"
+        reason_mom = "✅ QQQ动量正" if (qqq_mom > 0) else f"❌ QQQ动量负 ({qqq_mom:.1%})"
+
+        audit_logs.append({
+            "日期": curr_date.strftime('%Y-%m-%d'),
+            "动作": action,
+            "SPY状态": reason_spy,
+            "QQQ状态": reason_mom,
+            "当前持仓": "QLD" if curr_signal else "Cash"
+        })
+
+    audit_df = pd.DataFrame(audit_logs).sort_values("日期", ascending=False)
+
+    def highlight_action(val):
+        color = ''
+        if '买入' in val: color = 'background-color: #d4edda; color: #155724'
+        elif '卖出' in val: color = 'background-color: #f8d7da; color: #721c24'
+        elif '锁仓' in val: color = 'background-color: #e2e3e5'
+        elif '空仓' in val: color = 'color: #856404'
+        return color
+
+    st.dataframe(
+        audit_df.style.map(highlight_action, subset=['动作']),
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+    st.info("🐼 熊猫正在抓取最新数据...")
