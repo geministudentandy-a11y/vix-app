@@ -164,4 +164,80 @@ if df is not None:
         
         if not buy_points.empty:
             fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points['Strat_Cum'], mode='markers', name='Buy QLD', marker=dict(symbol='triangle-up', size=12, color='green', line=dict(width=1, color='black'))))
-        if not sell_points
+        if not sell_points.empty:
+            fig.add_trace(go.Scatter(x=sell_points.index, y=sell_points['Strat_Cum'], mode='markers', name='Sell (Cash)', marker=dict(symbol='triangle-down', size=12, color='red', line=dict(width=1, color='black'))))
+        
+        is_log = selected_range not in ["1年", "YTD"]
+        fig.update_layout(height=450, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(fixedrange=True), yaxis=dict(type='log' if is_log else 'linear', fixedrange=True, title='净值'), hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    # ==========================================
+    # 6. 历史交易清单 (图下方列表)
+    # ==========================================
+    st.markdown("### 📜 交易历史 (Transaction History)")
+    st.caption("仅展示发生 **买入/卖出** 动作的月份。请关注右侧的【操作原因】。")
+
+    # 1. 取全历史月末数据
+    monthly_all = df.resample('BME').last().copy()
+    
+    # 2. 计算信号跳变 (1.0=买入, -1.0=卖出)
+    monthly_all['Action_Diff'] = monthly_all['Signal'].diff()
+    
+    # 3. 筛选有动作的记录
+    transactions = monthly_all[monthly_all['Action_Diff'].abs() == 1.0].sort_index(ascending=False)
+    
+    history_logs = []
+
+    for date, row in transactions.iterrows():
+        action_code = row['Action_Diff']
+        spy_price = row['SPY']
+        spy_ma = row['SPY_MA']
+        qqq_mom = row['QQQ_MOM']
+        
+        # --- 状态判定 ---
+        # 1. SPY 状态
+        spy_status = "✅ 均线之上" if (spy_price > spy_ma) else f"❌ 跌破均线 ({spy_price:.0f}<{spy_ma:.0f})"
+        
+        # 2. QQQ 状态
+        mom_status = "✅ 动量为正" if (qqq_mom > 0) else f"❌ 动量转负 ({qqq_mom:.1%})"
+        
+        if action_code == 1.0:
+            action_label = "🟢 买入 (QLD)"
+            reason_summary = "进攻信号触发"
+            bg_color = 'background-color: #d4edda; color: #155724' # 绿
+        else:
+            action_label = "🔴 卖出 (Cash)"
+            # 判断到底是谁坏了事
+            fail_reasons = []
+            if spy_price <= spy_ma: fail_reasons.append("趋势破位")
+            if qqq_mom <= 0: fail_reasons.append("动量消失")
+            reason_summary = " & ".join(fail_reasons)
+            bg_color = 'background-color: #f8d7da; color: #721c24' # 红
+
+        history_logs.append({
+            "交易时间 (月底)": date.strftime('%Y-%m-%d'),
+            "执行动作": action_label,
+            "SPY 状态 (200线)": spy_status,
+            "QQQ 状态 (动量)": mom_status,
+            "核心原因": reason_summary,
+            "_bg": bg_color
+        })
+
+    history_df = pd.DataFrame(history_logs)
+
+    if not history_df.empty:
+        # 样式渲染
+        def highlight_row(row):
+            return [row['_bg']] * len(row) if '_bg' in row else [''] * len(row)
+
+        st.dataframe(
+            history_df.drop(columns=['_bg']).style.apply(highlight_row, axis=1),
+            use_container_width=True,
+            hide_index=True,
+            height=600 # 列表高度
+        )
+    else:
+        st.write("暂无历史交易记录。")
+
+else:
+    st.info("🐼 熊猫正在抓取最新数据...")
