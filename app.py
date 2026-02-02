@@ -10,44 +10,25 @@ from pandas.tseries.offsets import BMonthEnd
 # 0. 核心参数 (黄金参数)
 # ==========================================
 CB_N = 5                  # 过去 N 天
-CB_DROP_THRESHOLD = 0.075 # 跌幅阈值 7.5% (根据之前的回测最优解)
+CB_DROP_THRESHOLD = 0.075 # 跌幅阈值 7.5%
 
 # ==========================================
 # 1. 页面配置
 # ==========================================
-st.set_page_config(page_title="Panda Strategy (Pro)", page_icon="🐼", layout="wide")
+st.set_page_config(page_title="Panda Strategy Pro", page_icon="🐼", layout="wide")
 
 st.markdown("""
     <style>
     .big-font { font-size: 24px !important; font-weight: bold; }
     .signal-box { padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 2px solid #ddd;}
-    .risk-on { background-color: #d4edda; color: #155724; border-color: #c3e6cb; } /* QLD */
-    .risk-off { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; } /* Cash */
-    .meltdown { background-color: #fff3cd; color: #856404; border-color: #ffeeba; } /* QQQ (Meltdown) */
-    .stAlert { margin-top: 10px; }
+    .risk-on { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
+    .risk-off { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+    .meltdown { background-color: #fff3cd; color: #856404; border-color: #ffeeba; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 侧边栏
-# ==========================================
-st.sidebar.header("🐼 熊猫策略 (熔断增强版)")
-st.sidebar.info(
-    f"""
-    **策略逻辑：**
-    1. **进攻**: SPY > 200MA 且 QQQ动量 > 0 → 持有 **QLD**
-    2. **熔断**: 若 SPY {CB_N}天跌幅 > {CB_DROP_THRESHOLD*100}% → 立即切换 **QQQ** (直到月底)
-    3. **防守**: 信号失效 → 持有 **现金**
-    """
-)
-st.sidebar.divider()
-st.sidebar.caption("🛡️ 风控参数 (已锁定)")
-st.sidebar.number_input("SPY 观测窗口 (天)", value=CB_N, disabled=True)
-st.sidebar.number_input("熔断阈值 (%)", value=CB_DROP_THRESHOLD*100, disabled=True)
-st.sidebar.number_input("现金年化回报 (%)", value=3.0, disabled=True)
-
-# ==========================================
-# 3. 核心逻辑 (数据与信号)
+# 2. 数据处理与策略逻辑
 # ==========================================
 def get_rebalance_info():
     today = pd.Timestamp(datetime.now().date())
@@ -61,65 +42,41 @@ def get_rebalance_info():
 def get_data_and_signal():
     tickers = ['QQQ', 'SPY'] 
     try:
+        # 下载数据
         data = yf.download(tickers, start='2000-01-01', progress=False, auto_adjust=True)['Close']
         if data.empty: return None, None
         data = data.ffill()
-        
         df = data.copy()
         
-        # --- A. 基础指标 ---
+        # --- A. 计算指标 ---
         df['SPY_MA'] = df['SPY'].rolling(window=200).mean()
         df['QQQ_MOM'] = df['QQQ'].pct_change(95)
         
         # --- B. 熔断指标 ---
-        # 计算 SPY 过去 N 天的最高价
         spy_rolling_max = df['SPY'].rolling(CB_N).max()
-        # 计算回撤幅度
         df['SPY_Drop_N'] = (df['SPY'] / spy_rolling_max) - 1
-        # 标记是否触发熔断 (True = 触发)
         df['CB_Trigger'] = df['SPY_Drop_N'] < -CB_DROP_THRESHOLD
 
-        # --- C. 构建策略状态 (逐月处理) ---
-        # 0 = Cash, 1 = QQQ (Meltdown), 2 = QLD (Normal Bull)
-        
-        # 1. 生成月初信号 (resample 到月末，然后 shift 1 作为下个月的信号)
+        # --- C. 构建策略状态 (0=Cash, 1=QQQ, 2=QLD) ---
+        # 1. 月初基础信号
         monthly_raw = ((df['SPY'] > df['SPY_MA']) & (df['QQQ_MOM'] > 0))
-        monthly_signal = monthly_raw.resample('ME').last().shift(1) # 下个月初生效
+        monthly_signal = monthly_raw.resample('ME').last().shift(1) # 下月生效
         
-        # 将月初信号映射回日线 (ffill)
-        # 注意：这里需要对齐时间索引，创建一个 Position 序列
         df['Month_Key'] = df.index.to_period('M')
         monthly_signal.index = monthly_signal.index.to_period('M')
-        
-        # 默认持仓：根据月初信号 (True -> 2 (QLD), False -> 0 (Cash))
         df['Base_Signal'] = df['Month_Key'].map(monthly_signal).fillna(False)
-        df['Position'] = np.where(df['Base_Signal'], 2, 0) # 2=QLD, 0=Cash
+        df['Position'] = np.where(df['Base_Signal'], 2, 0) # 默认为 2(QLD) 或 0(Cash)
         
-        # --- D. 注入熔断逻辑 (Intra-month Logic) ---
-        # 这是一个路径依赖逻辑，我们按月循环处理 "Position == 2" 的月份
-        
-        # 找到所有原本持有 QLD 的月份
+        # 2. 注入熔断逻辑 (修正仓位)
         bull_months = df[df['Position'] == 2]['Month_Key'].unique()
-        
         for m in bull_months:
-            # 获取该月的数据切片掩码
             mask = df['Month_Key'] == m
             month_data = df.loc[mask]
-            
-            # 检查该月是否有熔断触发
             triggers = month_data[month_data['CB_Trigger']]
             
             if not triggers.empty:
-                # 找到第一个触发日
                 first_trigger_date = triggers.index[0]
-                
-                # 触发日(含)之前持有 QLD (保持 2)
-                # 触发日之后(不含) -> 切换为 QQQ (设为 1)
-                # 注意：实际交易是在触发日收盘确认，次日生效，
-                # 但为了回测计算简单，通常视作触发日当天依然承受了QLD的跌幅，
-                # 这里的 Position = 1 代表持有 QQQ。
-                
-                # 将触发日之后的日子设为 1 (QQQ)
+                # 触发日之后(不含) -> 切换为 QQQ (1)
                 mask_after = (df.index > first_trigger_date) & (df['Month_Key'] == m)
                 df.loc[mask_after, 'Position'] = 1
         
@@ -131,178 +88,181 @@ def get_data_and_signal():
 df, raw = get_data_and_signal()
 
 # ==========================================
-# 4. 主界面：当前状态面板
+# 3. 辅助绘制函数 (图表+表格)
 # ==========================================
-st.title("🐼 熊猫策略 (7.5% 熔断增强版)")
+def render_analysis_tab(full_df, start_date, key_suffix):
+    """渲染单个时间选项卡的内容：净值图 + 对应的交易记录表"""
+    
+    # 1. 数据切片
+    df_slice = full_df[full_df.index >= start_date].copy()
+    if df_slice.empty:
+        st.warning("该时间段无数据。")
+        return
+
+    # --- A. 绘制净值图 ---
+    # 计算每日收益
+    df_slice['Ret_QQQ'] = df_slice['QQQ'].pct_change()
+    df_slice['Ret_SPY'] = df_slice['SPY'].pct_change()
+    daily_drag = 0.015 / 252
+    df_slice['Ret_QLD_Syn'] = df_slice['Ret_QQQ'] * 2.0 - daily_drag
+    df_slice['Ret_Cash'] = 0.03 / 252 
+
+    # 根据昨日持仓计算今日策略收益
+    pos_shifted = df_slice['Position'].shift(1).fillna(0)
+    conditions = [(pos_shifted == 2), (pos_shifted == 1), (pos_shifted == 0)]
+    choices = [df_slice['Ret_QLD_Syn'], df_slice['Ret_QQQ'], df_slice['Ret_Cash']]
+    df_slice['Strat_Ret'] = np.select(conditions, choices, default=0.0)
+
+    # 净值归一化
+    df_slice['Strat_Cum'] = (1 + df_slice['Strat_Ret']).cumprod()
+    df_slice['SPY_Cum'] = (1 + df_slice['Ret_SPY']).cumprod()
+    df_slice['Strat_Cum'] /= df_slice['Strat_Cum'].iloc[0]
+    df_slice['SPY_Cum'] /= df_slice['SPY_Cum'].iloc[0]
+
+    # 绘图
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df_slice.index, y=df_slice['Strat_Cum'], name='Panda Strategy', line=dict(color='#2980b9', width=2)))
+    fig.add_trace(go.Scatter(x=df_slice.index, y=df_slice['SPY_Cum'], name='SPY Benchmark', line=dict(color='gray', dash='dot')))
+    
+    # 标记熔断点 (Position 变为 1 的点)
+    # 逻辑：今天 Pos=1 且 昨天 Pos=2，说明是熔断切换的第一天
+    meltdowns = df_slice[(df_slice['Position'] == 1) & (df_slice['Position'].shift(1) == 2)]
+    if not meltdowns.empty:
+        fig.add_trace(go.Scatter(x=meltdowns.index, y=df_slice.loc[meltdowns.index, 'Strat_Cum'], mode='markers', name='熔断触发', marker=dict(symbol='x', size=8, color='red')))
+
+    total_ret = (df_slice['Strat_Cum'].iloc[-1] - 1) * 100
+    try:
+        cagr = (df_slice['Strat_Cum'].iloc[-1] ** (252/len(df_slice)) - 1) * 100
+    except:
+        cagr = 0.0
+    
+    st.caption(f"📈 区间收益: **{total_ret:+.1f}%** | 年化: **{cagr:.1f}%**")
+    fig.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), hovermode="x unified", legend=dict(orientation="h", y=1.05))
+    st.plotly_chart(fig, use_container_width=True, key=f"chart_{key_suffix}")
+
+    # --- B. 生成交易记录表 (在该时间段内) ---
+    st.markdown("#### 📜 交易明细 (Transaction Log)")
+    
+    # 找出仓位变化的日期
+    # Position: 2=QLD, 1=QQQ, 0=Cash
+    df_slice['Prev_Pos'] = df_slice['Position'].shift(1).fillna(df_slice['Position'].iloc[0])
+    trades = df_slice[df_slice['Position'] != df_slice['Prev_Pos']].copy()
+    
+    if not trades.empty:
+        records = []
+        for date, row in trades.iterrows():
+            curr = int(row['Position'])
+            prev = int(row['Prev_Pos'])
+            price_spy = row['SPY']
+            
+            # 动作判断逻辑
+            action_type = ""
+            desc = ""
+            color = ""
+            
+            if prev == 0 and curr == 2:
+                action_type = "🟢 买入"
+                desc = "进攻信号确认 (Cash -> QLD)"
+                color = "#d4edda" # Green
+            elif prev == 2 and curr == 0:
+                action_type = "🔴 卖出"
+                desc = "趋势转弱/动量消失 (QLD -> Cash)"
+                color = "#f8d7da" # Red
+            elif prev == 2 and curr == 1:
+                action_type = "⚠️ 熔断"
+                desc = f"触发跌幅阈值 (QLD -> QQQ)"
+                color = "#fff3cd" # Yellow
+            elif prev == 1 and curr == 2:
+                action_type = "🔄 复位"
+                desc = "月初重置为进攻 (QQQ -> QLD)"
+                color = "#d1ecf1" # Blue
+            elif prev == 1 and curr == 0:
+                action_type = "🔴 卖出"
+                desc = "月初转为防守 (QQQ -> Cash)"
+                color = "#f8d7da" # Red
+            
+            records.append({
+                "日期": date.strftime('%Y-%m-%d'),
+                "动作": action_type,
+                "详情": desc,
+                "SPY价格": f"${price_spy:.2f}",
+                "_bg": f"background-color: {color}"
+            })
+            
+        # 倒序显示，最近的在最上面
+        record_df = pd.DataFrame(records).iloc[::-1]
+        
+        # 样式渲染函数
+        def highlight_row(row):
+            return [row['_bg']] * len(row)
+
+        st.dataframe(
+            record_df.drop(columns=['_bg']).style.apply(highlight_row, axis=1),
+            use_container_width=True,
+            height=300,
+            hide_index=True
+        )
+    else:
+        st.info("在此选定时间段内无仓位调整。")
+
+# ==========================================
+# 4. 主界面布局
+# ==========================================
+st.title("🐼 熊猫策略 (7.5% 熔断版)")
 
 next_rebal, is_today_rebal, days_left = get_rebalance_info()
 
-# 获取最新状态
 if df is not None:
     latest = df.iloc[-1]
-    latest_date = df.index[-1].strftime('%Y-%m-%d')
-    current_pos = int(latest['Position']) # 0, 1, 2
+    current_pos = int(latest['Position'])
     
-    # 检查今天是否刚刚触发熔断
-    is_just_triggered = latest['CB_Trigger']
-    
+    # --- 顶部状态栏 ---
     col1, col2 = st.columns([3, 2])
-    
     with col1:
-        st.caption(f"📅 数据日期: {latest_date}")
-        
         if is_today_rebal:
-            st.warning(f"🔔 **今天是月度调仓日！** 请在收盘前根据下月信号操作。")
-            # 简单的下月预测 (仅供参考)
-            next_bull = (latest['SPY'] > latest['SPY_MA']) and (latest['QQQ_MOM'] > 0)
-            if next_bull:
-                 st.info("🔮 下月信号预览: **进攻 (QLD)**")
-            else:
-                 st.info("🔮 下月信号预览: **防守 (Cash)**")
-
-        # 状态展示卡片
-        if current_pos == 2: # QLD
-            st.markdown(f"""<div class='signal-box risk-on'><h1>🎋 全力进攻 (QLD)</h1><p>SPY趋势向上 | 动量充足 | 无熔断</p></div>""", unsafe_allow_html=True)
+            st.warning(f"🔔 **调仓日提醒**")
         
-        elif current_pos == 1: # QQQ (Meltdown)
-            st.markdown(f"""<div class='signal-box meltdown'><h1>⚠️ 熔断降级 (QQQ)</h1><p><b>熔断机制生效中</b><br>避险模式：持有 QQQ 直到月底</p></div>""", unsafe_allow_html=True)
-            
-        else: # Cash
-            st.markdown(f"""<div class='signal-box risk-off'><h1>🛡️ 现金防守 (Cash)</h1><p>持有现金 / SHY</p></div>""", unsafe_allow_html=True)
-
-        if is_just_triggered and current_pos != 0:
-             st.error("🚨 **警报：今日触发熔断阈值！** \n建议立即将 QLD 换仓为 QQQ。")
+        # 状态卡片
+        if current_pos == 2:
+            st.markdown(f"""<div class='signal-box risk-on'><h1>🎋 全力进攻 (QLD)</h1><p>SPY趋势向上 | 动量充足</p></div>""", unsafe_allow_html=True)
+        elif current_pos == 1:
+            st.markdown(f"""<div class='signal-box meltdown'><h1>⚠️ 熔断降级 (QQQ)</h1><p>避险模式生效中 | 持有QQQ至月底</p></div>""", unsafe_allow_html=True)
+        else:
+            st.markdown(f"""<div class='signal-box risk-off'><h1>🛡️ 现金防守 (Cash)</h1><p>空仓等待机会</p></div>""", unsafe_allow_html=True)
 
     with col2:
-        st.write("📊 **核心指标监控**")
-        spy_dist = (latest['SPY'] - latest['SPY_MA']) / latest['SPY_MA']
-        mom_val = latest['QQQ_MOM']
-        drop_val = latest['SPY_Drop_N']
-        
-        st.metric("SPY vs 200线", f"${latest['SPY']:.2f}", f"{spy_dist*100:+.1f}%")
-        st.metric("QQQ 95日动量", f"${latest['QQQ']:.2f}", f"{mom_val*100:+.1f}%")
-        
-        # 熔断仪表盘
-        drop_color = "normal"
-        if drop_val < -0.05: drop_color = "off" # 接近熔断显示红色
-        st.metric("SPY 5日最大跌幅", f"{drop_val*100:.2f}%", f"阈值 -{CB_DROP_THRESHOLD*100}%", delta_color=drop_color)
+        st.write("**核心指标**")
+        st.metric("SPY 5日跌幅", f"{latest['SPY_Drop_N']*100:.2f}%", f"阈值 -{CB_DROP_THRESHOLD*100}%", 
+                  delta_color="off" if latest['SPY_Drop_N'] < -0.05 else "normal")
+        st.metric("当前策略仓位", ["现金 (Cash)", "QQQ (熔断态)", "QLD (进攻态)"][current_pos])
 
-    st.markdown("---")
+    st.divider()
 
-    # ==========================================
-    # 5. 图表：回测净值曲线
-    # ==========================================
-    st.subheader("📈 策略净值模拟 (含熔断演示)")
+    # --- 选项卡与内容渲染 ---
+    # 增加 "近1年" 选项
+    tabs = st.tabs(["20年全景", "近10年", "近5年", "近1年", "YTD"])
     
-    # 准备回测数据
-    bt_df = df.copy().dropna()
-    bt_df['Ret_QQQ'] = bt_df['QQQ'].pct_change()
-    bt_df['Ret_SPY'] = bt_df['SPY'].pct_change()
+    end_date = df.index[-1]
     
-    # 合成 QLD (减去损耗)
-    daily_drag = 0.015 / 252
-    bt_df['Ret_QLD_Syn'] = bt_df['Ret_QQQ'] * 2.0 - daily_drag
-    bt_df['Ret_Cash'] = 0.03 / 252 # 3% 年化
-    
-    # 计算策略收益
-    # Shift 1: 昨天的 Position 决定今天的收益
-    # Position: 2=QLD, 1=QQQ, 0=Cash
-    pos_shifted = bt_df['Position'].shift(1).fillna(0)
-    
-    conditions = [
-        (pos_shifted == 2), # QLD
-        (pos_shifted == 1), # QQQ
-        (pos_shifted == 0)  # Cash
-    ]
-    choices = [
-        bt_df['Ret_QLD_Syn'],
-        bt_df['Ret_QQQ'],
-        bt_df['Ret_Cash']
-    ]
-    
-    bt_df['Strat_Ret'] = np.select(conditions, choices, default=0.0)
-    
-    # 交互式时间选择
-    time_tabs = st.tabs(["20年全景", "近10年", "近5年", "YTD"])
-    
-    def plot_perf(data_slice, key_suffix):
-        if data_slice.empty: return
-        
-        # 计算净值
-        data_slice = data_slice.copy() # Avoid SettingWithCopy
-        data_slice['Strat_Cum'] = (1 + data_slice['Strat_Ret']).cumprod()
-        data_slice['SPY_Cum'] = (1 + data_slice['Ret_SPY']).cumprod()
-        
-        # 归一化
-        data_slice['Strat_Cum'] /= data_slice['Strat_Cum'].iloc[0]
-        data_slice['SPY_Cum'] /= data_slice['SPY_Cum'].iloc[0]
-        
-        # 找出熔断点 (Position 变成 1 的日子，且前一天不是 1)
-        # 注意：这里我们展示的是触发熔断的那一天
-        meltdown_days = data_slice[data_slice['CB_Trigger']]
-        
-        # 绘图
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data_slice.index, y=data_slice['Strat_Cum'], name='Panda Strategy', line=dict(color='#2980b9', width=2)))
-        fig.add_trace(go.Scatter(x=data_slice.index, y=data_slice['SPY_Cum'], name='SPY Benchmark', line=dict(color='gray', dash='dot')))
-        
-        # 标记熔断点
-        if not meltdown_days.empty:
-            fig.add_trace(go.Scatter(
-                x=meltdown_days.index, 
-                y=data_slice.loc[meltdown_days.index, 'Strat_Cum'],
-                mode='markers',
-                name='Triggered CB',
-                marker=dict(symbol='x', size=8, color='red')
-            ))
-            
-        strat_cagr = (data_slice['Strat_Cum'].iloc[-1] ** (252/len(data_slice)) - 1) * 100
-        total_ret = (data_slice['Strat_Cum'].iloc[-1] - 1) * 100
-        
-        st.caption(f"区间收益: **{total_ret:+.1f}%** | 年化估算: **{strat_cagr:.1f}%**")
-        
-        fig.update_layout(height=400, margin=dict(l=0, r=0, t=20, b=0), hovermode="x unified", legend=dict(orientation="h", y=1.05))
-        st.plotly_chart(fig, use_container_width=True, key=f"plot_{key_suffix}")
-
-    end_date = bt_df.index[-1]
-    
-    with time_tabs[0]:
+    with tabs[0]: # 20年
         start = end_date - pd.DateOffset(years=20)
-        plot_perf(bt_df[bt_df.index >= start], "20y")
+        render_analysis_tab(df, start, "20y")
         
-    with time_tabs[1]:
+    with tabs[1]: # 10年
         start = end_date - pd.DateOffset(years=10)
-        plot_perf(bt_df[bt_df.index >= start], "10y")
-
-    with time_tabs[2]:
+        render_analysis_tab(df, start, "10y")
+        
+    with tabs[2]: # 5年
         start = end_date - pd.DateOffset(years=5)
-        plot_perf(bt_df[bt_df.index >= start], "5y")
+        render_analysis_tab(df, start, "5y")
         
-    with time_tabs[3]:
-        start = pd.Timestamp(f"{end_date.year}-01-01")
-        plot_perf(bt_df[bt_df.index >= start], "ytd")
+    with tabs[3]: # 1年 (新增)
+        start = end_date - pd.DateOffset(years=1)
+        render_analysis_tab(df, start, "1y")
 
-    # ==========================================
-    # 6. 历史熔断清单
-    # ==========================================
-    st.markdown("### 📜 熔断历史记录 (Recent Meltdowns)")
-    st.caption(f"仅展示触发了【{CB_N}天跌幅 > {CB_DROP_THRESHOLD*100}%】的日子。这些是策略救命的关键时刻。")
-    
-    # 筛选熔断日
-    all_triggers = df[df['CB_Trigger']].copy()
-    all_triggers['Drawdown'] = all_triggers['SPY_Drop_N']
-    all_triggers['Close'] = all_triggers['SPY']
-    
-    if not all_triggers.empty:
-        # 格式化表格
-        display_triggers = all_triggers[['Close', 'Drawdown']].sort_index(ascending=False)
-        display_triggers['Drawdown'] = display_triggers['Drawdown'].apply(lambda x: f"{x*100:.2f}%")
-        display_triggers['Close'] = display_triggers['Close'].apply(lambda x: f"${x:.2f}")
-        display_triggers.index = display_triggers.index.strftime('%Y-%m-%d')
-        
-        st.dataframe(display_triggers.head(50), height=300, use_container_width=True)
-    else:
-        st.write("在选定周期内未触发熔断。")
+    with tabs[4]: # YTD
+        start = pd.Timestamp(f"{end_date.year}-01-01")
+        render_analysis_tab(df, start, "ytd")
 
 else:
-    st.info("🐼 正在初始化数据，请稍候...")
+    st.info("数据正在加载中...")
