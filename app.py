@@ -6,7 +6,7 @@ from datetime import datetime
 from pandas.tseries.offsets import BMonthEnd
 
 # ==========================================
-# 0. 辅助函数：计算调仓日逻辑
+# 0. 辅助函数
 # ==========================================
 def get_rebalance_info():
     today = pd.Timestamp(datetime.now().date())
@@ -42,7 +42,7 @@ ma_window = st.sidebar.number_input("SPY 均线 (天)", value=200, disabled=True
 cash_rate = st.sidebar.number_input("防御期现金年化 (%)", value=3.0, disabled=True)
 
 # ==========================================
-# 3. 核心逻辑
+# 3. 核心逻辑 (数据处理)
 # ==========================================
 @st.cache_data(ttl=3600) 
 def get_data_and_signal():
@@ -94,44 +94,21 @@ if df is not None:
     
     with col1:
         if is_today_rebal:
-            # 调仓日看实时信号
             is_bull = latest['SPY'] > latest['SPY_MA']
             is_mom_up = latest['QQQ_MOM'] > 0
-            live_signal = is_bull and is_mom_up
-            
-            if live_signal:
-                st.markdown(f"""
-                    <div class='signal-box risk-on'>
-                        <h1>🎋 进攻信号 (BUY)</h1>
-                        <p><b>今天是调仓日</b>，趋势向上。</p>
-                        <p>目标仓位: <b>100% QLD</b></p>
-                    </div>
-                """, unsafe_allow_html=True)
+            if is_bull and is_mom_up:
+                st.markdown(f"""<div class='signal-box risk-on'><h1>🎋 进攻 (BUY)</h1><p>目标: <b>100% QLD</b></p></div>""", unsafe_allow_html=True)
             else:
-                st.markdown(f"""
-                    <div class='signal-box risk-off'>
-                        <h1>🛡️ 防守信号 (SELL)</h1>
-                        <p><b>今天是调仓日</b>，风险较高。</p>
-                        <p>目标仓位: <b>100% 现金</b></p>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class='signal-box risk-off'><h1>🛡️ 防守 (SELL)</h1><p>目标: <b>100% 现金</b></p></div>""", unsafe_allow_html=True)
         else:
             status_text = "进攻 (QLD)" if current_signal == 1 else "防守 (Cash)"
             color_class = "risk-on" if current_signal == 1 else "risk-off"
-            
-            st.markdown(f"""
-                <div class='signal-box wait-mode'>
-                    <h1>💤 保持现状 (Hold)</h1>
-                    <p>当前处于信号锁定周期。</p>
-                    <p>当前持仓: <span class='{color_class}'><b>{status_text}</b></span></p>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class='signal-box wait-mode'><h1>💤 保持现状 (Hold)</h1><p>当前持仓: <span class='{color_class}'><b>{status_text}</b></span></p></div>""", unsafe_allow_html=True)
 
     with col2:
         st.write("📊 **核心指标监控**")
         spy_dist = (latest['SPY'] - latest['SPY_MA']) / latest['SPY_MA']
         mom_val = latest['QQQ_MOM']
-        
         st.metric("SPY vs 200线", f"${latest['SPY']:.0f}", f"{spy_dist*100:+.1f}%")
         st.metric("QQQ 95日动量", f"${latest['QQQ']:.0f}", f"{mom_val*100:+.1f}%")
 
@@ -186,28 +163,5 @@ if df is not None:
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], name='SPY Benchmark', line=dict(color='gray', dash='dot')))
         
         if not buy_points.empty:
-            fig.add_trace(go.Scatter(
-                x=buy_points.index, y=buy_points['Strat_Cum'],
-                mode='markers', name='Buy QLD',
-                marker=dict(symbol='triangle-up', size=12, color='green', line=dict(width=1, color='black'))
-            ))
-        if not sell_points.empty:
-            fig.add_trace(go.Scatter(
-                x=sell_points.index, y=sell_points['Strat_Cum'],
-                mode='markers', name='Sell (Cash)',
-                marker=dict(symbol='triangle-down', size=12, color='red', line=dict(width=1, color='black'))
-            ))
-        
-        is_log = selected_range not in ["1年", "YTD"]
-        fig.update_layout(
-            height=450, 
-            margin=dict(l=10, r=10, t=30, b=10),
-            xaxis=dict(fixedrange=True), 
-            yaxis=dict(type='log' if is_log else 'linear', fixedrange=True, title='净值'), 
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-    # ==========================================
-    # 6. 历史交易
+            fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points['Strat_Cum'], mode='markers', name='Buy QLD', marker=dict(symbol='triangle-up', size=12, color='green', line=dict(width=1, color='black'))))
+        if not sell_points
