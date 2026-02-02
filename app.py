@@ -159,4 +159,52 @@ if df is not None:
     # 4. 策略收益计算 (昨日信号决定今日持仓)
     # Signal=1 -> 持有 QLD_Syn; Signal=0 -> 持有 Cash
     backtest_df['Strat_Ret'] = backtest_df['Signal'].shift(1) * backtest_df['Daily_Ret_QLD_Syn'] + \
-                               (1 - backtest
+                               (1 - backtest_df['Signal'].shift(1)) * daily_cash_ret
+    
+    # 5. SPY 基准收益
+    backtest_df['Daily_Ret_SPY'] = backtest_df['SPY'].pct_change()
+
+    # 时间筛选
+    time_options = ["20年", "10年", "5年", "1年", "YTD"]
+    selected_range = st.radio("回测范围:", time_options, index=0, horizontal=True)
+
+    end_date = backtest_df.index[-1]
+    if selected_range == "20年": start = end_date - pd.DateOffset(years=20)
+    elif selected_range == "10年": start = end_date - pd.DateOffset(years=10)
+    elif selected_range == "5年": start = end_date - pd.DateOffset(years=5)
+    elif selected_range == "1年": start = end_date - pd.DateOffset(years=1)
+    else: start = pd.Timestamp(f"{end_date.year}-01-01")
+    
+    plot_df = backtest_df[backtest_df.index >= start].copy()
+    
+    if not plot_df.empty:
+        # 计算净值曲线
+        plot_df['Strat_Cum'] = (1 + plot_df['Strat_Ret']).cumprod()
+        plot_df['SPY_Cum'] = (1 + plot_df['Daily_Ret_SPY']).cumprod()
+        
+        # 归一化
+        plot_df['Strat_Cum'] /= plot_df['Strat_Cum'].iloc[0]
+        plot_df['SPY_Cum'] /= plot_df['SPY_Cum'].iloc[0]
+        
+        strat_perf = (plot_df['Strat_Cum'].iloc[-1] - 1) * 100
+        spy_perf = (plot_df['SPY_Cum'].iloc[-1] - 1) * 100
+        
+        st.caption(f"期间累计收益: 熊猫策略 **{strat_perf:+.1f}%** vs SPY基准 **{spy_perf:+.1f}%**")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Strat_Cum'], name='Panda Strategy', line=dict(color='#2980b9', width=2)))
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['SPY_Cum'], name='SPY (Benchmark)', line=dict(color='gray', dash='dot')))
+        
+        is_log = selected_range not in ["1年", "YTD"]
+        fig.update_layout(
+            height=400, 
+            margin=dict(l=10, r=10, t=30, b=10),
+            xaxis=dict(fixedrange=True), 
+            yaxis=dict(type='log' if is_log else 'linear', fixedrange=True, title='净值 (Log)' if is_log else '净值'), 
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+else:
+    st.info("🐼 熊猫正在抓取最新数据...")
