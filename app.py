@@ -1,7 +1,7 @@
 """
-🐼 PANDA TACTICAL COMMAND CENTER
-================================
-Cyberpunk-inspired trading dashboard with holographic UI
+🐼 PANDA TACTICAL COMMAND CENTER - Enhanced Edition
+====================================================
+Cyberpunk dashboard with dynamic visual status indicators
 """
 
 import streamlit as st
@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
-import time
+import base64
 
 # ==========================================
 # 🎨 PAGE CONFIGURATION
@@ -23,6 +23,19 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# ==========================================
+# 🖼️ LOAD IMAGES AS BASE64
+# ==========================================
+
+def load_image_as_base64(filepath):
+    """Convert image to base64 for embedding"""
+    with open(filepath, 'rb') as f:
+        return base64.b64encode(f.read()).decode()
+
+# Load the tactical images
+REST_IMAGE = load_image_as_base64('/mnt/user-data/uploads/rest.png')
+ATTACK_IMAGE = load_image_as_base64('/mnt/user-data/uploads/attack.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
@@ -96,15 +109,13 @@ st.markdown("""
         100% { background-position: 200% center; }
     }
     
-    /* ===== METRIC CARDS - HOLOGRAPHIC STYLE ===== */
+    /* ===== METRIC CARDS ===== */
     [data-testid="stMetricValue"] {
         font-family: 'Orbitron', monospace !important;
         font-size: 2.2rem !important;
         font-weight: 900 !important;
         color: #00ff00 !important;
-        text-shadow: 0 0 20px rgba(0, 255, 0, 0.8),
-                     0 0 40px rgba(0, 255, 0, 0.4);
-        filter: drop-shadow(0 0 5px #00ff00);
+        text-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
     }
     
     [data-testid="stMetricLabel"] {
@@ -113,21 +124,14 @@ st.markdown("""
         color: #00ffff !important;
         text-transform: uppercase;
         letter-spacing: 2px;
-        opacity: 0.9;
     }
     
-    [data-testid="stMetricDelta"] {
-        font-family: 'Share Tech Mono', monospace !important;
-        font-size: 0.9rem !important;
-    }
-    
-    /* ===== ALERT BOXES - NEON BORDERS ===== */
+    /* ===== ALERT BOXES ===== */
     .stAlert {
         border: 2px solid;
         border-radius: 0;
         font-family: 'Share Tech Mono', monospace !important;
         backdrop-filter: blur(10px);
-        box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
         animation: borderPulse 2s ease-in-out infinite;
     }
     
@@ -136,84 +140,57 @@ st.markdown("""
         50% { box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); }
     }
     
-    [data-baseweb="notification"] {
-        background: rgba(255, 0, 0, 0.1) !important;
-        border-color: #ff0055 !important;
-    }
-    
-    /* ===== PROGRESS BAR - HOLOGRAPHIC ===== */
+    /* ===== PROGRESS BAR ===== */
     .stProgress > div > div > div > div {
         background: linear-gradient(90deg, #00ffff, #ff00ff);
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
-        animation: progressGlow 2s ease-in-out infinite;
     }
     
-    @keyframes progressGlow {
-        0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
-        50% { box-shadow: 0 0 25px rgba(0, 255, 255, 0.8); }
-    }
-    
-    /* ===== SIDEBAR - CONTROL PANEL ===== */
+    /* ===== SIDEBAR ===== */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0a0e27 0%, #1a1a2e 100%);
         border-right: 2px solid #00ffff;
         box-shadow: 5px 0 30px rgba(0, 255, 255, 0.2);
     }
     
-    [data-testid="stSidebar"] .stMarkdown {
-        color: #00ffff !important;
-    }
-    
-    /* ===== INPUT FIELDS - TACTICAL STYLE ===== */
+    /* ===== INPUT FIELDS ===== */
     .stNumberInput input {
         background: rgba(0, 0, 0, 0.6) !important;
         border: 1px solid #00ffff !important;
         color: #00ff00 !important;
         font-family: 'Share Tech Mono', monospace !important;
-        box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
     }
     
-    .stNumberInput input:focus {
-        border-color: #ff00ff !important;
-        box-shadow: 0 0 20px rgba(255, 0, 255, 0.4) !important;
+    /* ===== TACTICAL CARD WITH BACKGROUND IMAGE ===== */
+    .tactical-card {
+        position: relative;
+        background: rgba(0, 0, 0, 0.7);
+        border: 2px solid;
+        padding: 1.5rem;
+        height: 320px;
+        overflow: hidden;
+        box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
     }
     
-    /* ===== DATAFRAME - TERMINAL STYLE ===== */
-    [data-testid="stDataFrame"] {
-        background: rgba(0, 0, 0, 0.8);
-        border: 1px solid #00ffff;
-        font-family: 'Share Tech Mono', monospace !important;
-        box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+    .tactical-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        opacity: 0.35;
+        filter: brightness(0.8);
+        z-index: 0;
     }
     
-    /* ===== EXPANDER - COLLAPSIBLE TERMINAL ===== */
-    .streamlit-expanderHeader {
-        background: rgba(0, 255, 255, 0.1) !important;
-        border: 1px solid #00ffff !important;
-        border-radius: 0 !important;
-        font-family: 'Orbitron', monospace !important;
-        color: #00ffff !important;
+    .tactical-card-content {
+        position: relative;
+        z-index: 1;
     }
     
-    .streamlit-expanderHeader:hover {
-        background: rgba(0, 255, 255, 0.2) !important;
-        box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
-    }
-    
-    /* ===== CUSTOM GLITCH EFFECT ===== */
-    .glitch {
-        animation: glitch 1s infinite;
-    }
-    
-    @keyframes glitch {
-        0%, 90%, 100% { transform: translate(0); }
-        92% { transform: translate(-2px, 2px); }
-        94% { transform: translate(2px, -2px); }
-        96% { transform: translate(-2px, -2px); }
-        98% { transform: translate(2px, 2px); }
-    }
-    
-    /* ===== SCANLINE EFFECT ===== */
     .scanline {
         position: relative;
         overflow: hidden;
@@ -240,11 +217,22 @@ st.markdown("""
         0% { transform: translateY(-100%); }
         100% { transform: translateY(100%); }
     }
+    
+    /* ===== GLITCH EFFECT ===== */
+    .glitch {
+        animation: glitch 1s infinite;
+    }
+    
+    @keyframes glitch {
+        0%, 90%, 100% { transform: translate(0); }
+        92% { transform: translate(-2px, 2px); }
+        94% { transform: translate(2px, -2px); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# ⚙️ TACTICAL CONTROL PANEL (SIDEBAR)
+# ⚙️ TACTICAL CONTROL PANEL
 # ==========================================
 
 with st.sidebar:
@@ -252,21 +240,20 @@ with st.sidebar:
     st.markdown("---")
     
     st.markdown("### 🐼 PANDA PROTOCOLS")
-    PANDA_MA = st.number_input("SPY MA FILTER", value=200, help="Moving average threshold")
-    PANDA_MOM = st.number_input("QQQ MOMENTUM", value=95, help="Momentum lookback period")
-    CB_DROP = st.number_input("CIRCUIT BREAKER", value=0.075, step=0.005, format="%.3f", 
-                              help="Emergency exit threshold")
+    PANDA_MA = st.number_input("SPY MA FILTER", value=200)
+    PANDA_MOM = st.number_input("QQQ MOMENTUM", value=95)
+    CB_DROP = st.number_input("CIRCUIT BREAKER", value=0.075, step=0.005, format="%.3f")
     
     st.markdown("---")
     st.markdown("### 🏴‍☠️ SQUAD PARAMETERS")
-    SQ_BB_N = st.number_input("BB PERIOD", value=20, help="Bollinger band calculation period")
-    SQ_BB_STD = st.number_input("BB DEVIATION", value=2.5, help="Standard deviation multiplier")
-    SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30, help="RSI entry threshold")
+    SQ_BB_N = st.number_input("BB PERIOD", value=20)
+    SQ_BB_STD = st.number_input("BB DEVIATION", value=2.5)
+    SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30)
     
     st.markdown("---")
     st.markdown(f"""
     <div style='text-align: center; padding: 1rem; background: rgba(0,255,255,0.1); 
-                border: 1px solid #00ffff; margin-top: 2rem;'>
+                border: 1px solid #00ffff;'>
         <p style='font-family: Share Tech Mono; font-size: 0.7rem; color: #00ffff; margin: 0;'>
             SYSTEM ONLINE<br>
             <span style='color: #00ff00;'>● ACTIVE</span>
@@ -290,7 +277,6 @@ def get_market_data():
     
     df = df.dropna()
     
-    # Technical indicators
     df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
     df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
     
@@ -309,7 +295,6 @@ def get_market_data():
     
     return df
 
-# Fetch data
 try:
     df = get_market_data()
     latest = df.iloc[-1]
@@ -319,7 +304,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 🧠 STRATEGY LOGIC CORE
+# 🧠 STRATEGY LOGIC
 # ==========================================
 
 month_end = curr_date + MonthEnd(0)
@@ -338,7 +323,6 @@ sq_alert = dist_pct < 2.0
 # 🎮 COMMAND CENTER INTERFACE
 # ==========================================
 
-# === HEADER: TACTICAL OVERVIEW ===
 st.markdown(f"""
 <div style='text-align: center; padding: 2rem 0 1rem 0;'>
     <h1 class='glitch'>🐼 PANDA TACTICAL COMMAND</h1>
@@ -362,19 +346,16 @@ with col_q2:
     st.metric("QQQ INDEX", f"${latest['QQQ']:.2f}", f"{qqq_delta:+.2f}")
 
 with col_q3:
-    rsi_color = "inverse" if latest['RSI'] < 30 else "normal"
     st.metric("RSI LEVEL", f"{latest['RSI']:.1f}", 
               "OVERSOLD" if latest['RSI'] < 30 else "NORMAL",
-              delta_color=rsi_color)
+              delta_color="inverse" if latest['RSI'] < 30 else "normal")
 
 with col_q4:
     vol_change = ((df['QQQ'].iloc[-1] / df['QQQ'].iloc[-2] - 1) * 100)
-    st.metric("VOLATILITY", f"{abs(vol_change):.2f}%", 
-              f"{vol_change:+.2f}%")
+    st.metric("VOLATILITY", f"{abs(vol_change):.2f}%", f"{vol_change:+.2f}%")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# === MISSION STATUS GRID ===
 st.markdown("""
 <div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
             padding: 0.5rem; margin-bottom: 2rem; box-shadow: 0 0 20px rgba(0,255,255,0.2);'>
@@ -387,11 +368,11 @@ st.markdown("""
 
 col1, col2, col3 = st.columns(3)
 
-# === CARD 1: REBALANCE COUNTDOWN ===
+# === CARD 1: REBALANCE ===
 with col1:
     st.markdown("""
     <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ffff; 
-                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(0,255,255,0.2);'>
+                padding: 1.5rem; height: 320px; box-shadow: 0 0 30px rgba(0,255,255,0.2);'>
         <p style='font-family: Orbitron; color: #00ffff; font-size: 1.2rem; 
                   margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
             🗓️ REBALANCE PROTOCOL
@@ -401,7 +382,7 @@ with col1:
     if is_month_end:
         st.markdown("""
         <div style='background: rgba(255,0,0,0.2); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center; animation: borderPulse 1s infinite;'>
+                    padding: 1rem; text-align: center;'>
             <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
                       margin: 0; font-weight: 900;'>
                 ⚠️ EXECUTE NOW
@@ -424,79 +405,103 @@ with col1:
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-# === CARD 2: SUICIDE SQUAD ===
+# === CARD 2: SUICIDE SQUAD WITH DYNAMIC BACKGROUND ===
 with col2:
-    st.markdown("""
-    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #ff00ff; 
-                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(255,0,255,0.2);'>
-        <p style='font-family: Orbitron; color: #ff00ff; font-size: 1.2rem; 
-                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-            🏴‍☠️ SUICIDE SQUAD
-        </p>
+    # Determine which image to use based on status
+    if sq_fire:
+        bg_image = ATTACK_IMAGE
+        border_color = "#ff0055"
+        glow_color = "255, 0, 85"
+    elif sq_alert:
+        bg_image = ATTACK_IMAGE
+        border_color = "#ffa500"
+        glow_color = "255, 165, 0"
+    else:
+        bg_image = REST_IMAGE
+        border_color = "#00ff00"
+        glow_color = "0, 255, 0"
+    
+    st.markdown(f"""
+    <div class='tactical-card scanline' style='border-color: {border_color}; 
+                box-shadow: 0 0 30px rgba({glow_color}, 0.3);'>
+        <style>
+            .tactical-card::before {{
+                background-image: url('data:image/png;base64,{bg_image}');
+            }}
+        </style>
+        <div class='tactical-card-content'>
+            <p style='font-family: Orbitron; color: #ff00ff; font-size: 1.2rem; 
+                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;
+                      text-shadow: 0 0 10px rgba(255, 0, 255, 0.8);'>
+                🏴‍☠️ SUICIDE SQUAD
+            </p>
     """, unsafe_allow_html=True)
     
     if sq_fire:
         st.markdown("""
-        <div style='background: rgba(255,0,0,0.3); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center; animation: borderPulse 1s infinite;'>
-            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
-                🔴 DEPLOY
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 1.2rem; margin: 0.5rem 0 0 0;'>
-                BUY QLD
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ff0055; 
-                      font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
-                SIGNAL: ACTIVE
-            </p>
-        </div>
+            <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;
+                        box-shadow: 0 0 30px rgba(255, 0, 85, 0.5);'>
+                <p style='font-family: Orbitron; color: #ffffff; font-size: 2rem; 
+                          margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
+                    🔴 DEPLOY
+                </p>
+                <p style='font-family: Share Tech Mono; color: #ffffff; 
+                          font-size: 1.5rem; margin: 0.8rem 0; font-weight: 900;'>
+                    BUY QLD
+                </p>
+                <p style='font-family: Share Tech Mono; color: #ffff00; 
+                          font-size: 0.8rem; margin: 0;'>
+                    SIGNAL: ACTIVE
+                </p>
+            </div>
         """, unsafe_allow_html=True)
     elif sq_alert:
         st.markdown(f"""
-        <div style='background: rgba(255,165,0,0.2); border: 2px solid #ffa500; 
-                    padding: 1rem; text-align: center;'>
-            <p style='font-family: Orbitron; color: #ffa500; font-size: 1.3rem; 
-                      margin: 0; font-weight: 700;'>
-                🟡 ALERT
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 1.5rem; margin: 0.5rem 0;'>
-                {dist_pct:.2f}%
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffa500; 
-                      font-size: 0.7rem; margin: 0;'>
-                PROXIMITY WARNING
-            </p>
-        </div>
+            <div style='background: rgba(255,165,0,0.85); border: 2px solid #ffa500; 
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;
+                        box-shadow: 0 0 30px rgba(255, 165, 0, 0.5);'>
+                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; 
+                          margin: 0; font-weight: 900;'>
+                    🟡 ALERT
+                </p>
+                <p style='font-family: Share Tech Mono; color: #000000; 
+                          font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
+                    {dist_pct:.2f}%
+                </p>
+                <p style='font-family: Share Tech Mono; color: #000000; 
+                          font-size: 0.8rem; margin: 0;'>
+                    PROXIMITY WARNING
+                </p>
+            </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
-        <div style='background: rgba(0,255,0,0.1); border: 2px solid #00ff00; 
-                    padding: 1rem; text-align: center;'>
-            <p style='font-family: Orbitron; color: #00ff00; font-size: 1.3rem; 
-                      margin: 0; font-weight: 700;'>
-                🟢 STANDBY
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 1.5rem; margin: 0.5rem 0;'>
-                +{dist_pct:.2f}%
-            </p>
-            <p style='font-family: Share Tech Mono; color: #00ff00; 
-                      font-size: 0.7rem; margin: 0;'>
-                RSI: {latest['RSI']:.1f} | SAFE
-            </p>
-        </div>
+            <div style='background: rgba(0,255,0,0.85); border: 2px solid #00ff00; 
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;
+                        box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);'>
+                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; 
+                          margin: 0; font-weight: 900;'>
+                    🟢 STANDBY
+                </p>
+                <p style='font-family: Share Tech Mono; color: #000000; 
+                          font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
+                    +{dist_pct:.2f}%
+                </p>
+                <p style='font-family: Share Tech Mono; color: #000000; 
+                          font-size: 0.8rem; margin: 0;'>
+                    RSI: {latest['RSI']:.1f} | SAFE
+                </p>
+            </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
-# === CARD 3: PANDA MAIN FORCE ===
+# === CARD 3: PANDA FORCE ===
 with col3:
     st.markdown("""
     <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ff00; 
-                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(0,255,0,0.2);'>
+                padding: 1.5rem; height: 320px; box-shadow: 0 0 30px rgba(0,255,0,0.2);'>
         <p style='font-family: Orbitron; color: #00ff00; font-size: 1.2rem; 
                   margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
             🐼 PANDA FORCE
@@ -506,9 +511,9 @@ with col3:
     if panda_cb:
         st.markdown(f"""
         <div style='background: rgba(255,0,0,0.3); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center; animation: borderPulse 0.5s infinite;'>
+                    padding: 1rem; text-align: center;'>
             <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
+                      margin: 0; font-weight: 900;'>
                 🚨 EMERGENCY
             </p>
             <p style='font-family: Share Tech Mono; color: #ffffff; 
@@ -527,7 +532,7 @@ with col3:
             <div style='background: rgba(0,255,0,0.2); border: 2px solid #00ff00; 
                         padding: 1rem; text-align: center;'>
                 <p style='font-family: Orbitron; color: #00ff00; font-size: 1.5rem; 
-                          margin: 0; font-weight: 900; text-shadow: 0 0 20px #00ff00;'>
+                          margin: 0; font-weight: 900;'>
                     🐂 BULL MODE
                 </p>
                 <p style='font-family: Share Tech Mono; color: #ffffff; 
@@ -564,12 +569,12 @@ with col3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 📈 HOLOGRAPHIC TACTICAL DISPLAY
+# 📈 TACTICAL CHART
 # ==========================================
 
 st.markdown("""
 <div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
-            padding: 0.5rem; margin-bottom: 1rem; box-shadow: 0 0 20px rgba(0,255,255,0.2);'>
+            padding: 0.5rem; margin-bottom: 1rem;'>
     <p style='font-family: Orbitron; color: #00ffff; text-align: center; 
               margin: 0; font-size: 1.1rem; letter-spacing: 3px;'>
         ▸ HOLOGRAPHIC TACTICAL DISPLAY ◂
@@ -577,79 +582,49 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Create advanced chart
 fig = make_subplots(
     rows=2, cols=1, 
     shared_xaxes=True,
     vertical_spacing=0.08,
-    row_heights=[0.7, 0.3],
-    subplot_titles=('PRICE MATRIX', 'RSI SCANNER')
+    row_heights=[0.7, 0.3]
 )
 
-# === Price Chart with Neon Effect ===
 fig.add_trace(
     go.Scatter(
-        x=df.index, 
-        y=df['QQQ'],
-        mode='lines',
-        name='QQQ',
+        x=df.index, y=df['QQQ'], mode='lines', name='QQQ',
         line=dict(color='#00ffff', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(0, 255, 255, 0.1)'
-    ),
-    row=1, col=1
+        fill='tozeroy', fillcolor='rgba(0, 255, 255, 0.1)'
+    ), row=1, col=1
 )
 
-# Lower Bollinger Band
 fig.add_trace(
     go.Scatter(
-        x=df.index,
-        y=df['Lower_Band'],
-        mode='lines',
-        name='Panic Zone',
+        x=df.index, y=df['Lower_Band'], mode='lines', name='Panic Zone',
         line=dict(color='#ff0055', width=2, dash='dot')
-    ),
-    row=1, col=1
+    ), row=1, col=1
 )
 
-# Buy signals
 sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
 if len(sq_signals) > 0:
     fig.add_trace(
         go.Scatter(
-            x=sq_signals.index,
-            y=sq_signals['QQQ'],
-            mode='markers',
-            name='BUY',
-            marker=dict(
-                color='#00ff00',
-                size=12,
-                symbol='triangle-up',
-                line=dict(color='#ffffff', width=2)
-            )
-        ),
-        row=1, col=1
+            x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='BUY',
+            marker=dict(color='#00ff00', size=12, symbol='triangle-up',
+                       line=dict(color='#ffffff', width=2))
+        ), row=1, col=1
     )
 
-# === RSI with gradient fill ===
 fig.add_trace(
     go.Scatter(
-        x=df.index,
-        y=df['RSI'],
-        mode='lines',
-        name='RSI',
+        x=df.index, y=df['RSI'], mode='lines', name='RSI',
         line=dict(color='#ff00ff', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(255, 0, 255, 0.15)'
-    ),
-    row=2, col=1
+        fill='tozeroy', fillcolor='rgba(255, 0, 255, 0.15)'
+    ), row=2, col=1
 )
 
-# RSI thresholds
 fig.add_hline(y=30, line_width=2, line_dash="dash", line_color="#00ff00", row=2, col=1)
 fig.add_hline(y=70, line_width=2, line_dash="dash", line_color="#ff0055", row=2, col=1)
 
-# === Cyberpunk Chart Styling ===
 fig.update_layout(
     height=550,
     paper_bgcolor='rgba(0,0,0,0)',
@@ -657,41 +632,13 @@ fig.update_layout(
     margin=dict(l=10, r=10, t=30, b=10),
     font=dict(family='Share Tech Mono', color='#00ffff', size=10),
     showlegend=False,
-    hovermode='x unified',
-    hoverlabel=dict(
-        bgcolor='rgba(0, 0, 0, 0.9)',
-        font_size=12,
-        font_family='Share Tech Mono',
-        bordercolor='#00ffff'
-    )
+    hovermode='x unified'
 )
 
-# X-axis styling
-fig.update_xaxes(
-    showgrid=True,
-    gridwidth=1,
-    gridcolor='rgba(0, 255, 255, 0.1)',
-    showline=True,
-    linewidth=2,
-    linecolor='#00ffff',
-    color='#00ffff'
-)
-
-# Y-axis styling
-fig.update_yaxes(
-    showgrid=True,
-    gridwidth=1,
-    gridcolor='rgba(0, 255, 255, 0.1)',
-    showline=True,
-    linewidth=2,
-    linecolor='#00ffff',
-    color='#00ffff'
-)
-
-# Annotation styling
-fig.update_annotations(
-    font=dict(family='Orbitron', size=12, color='#00ffff')
-)
+fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 255, 0.1)',
+                 showline=True, linewidth=2, linecolor='#00ffff')
+fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 255, 0.1)',
+                 showline=True, linewidth=2, linecolor='#00ffff')
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
@@ -701,9 +648,9 @@ st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 with st.expander("🔍 ACCESS RAW DATA TERMINAL"):
     st.markdown("""
-    <div style='background: rgba(0,0,0,0.8); border: 1px solid #00ff00; padding: 1rem; margin-bottom: 1rem;'>
+    <div style='background: rgba(0,0,0,0.8); border: 1px solid #00ff00; padding: 1rem;'>
         <p style='font-family: Share Tech Mono; color: #00ff00; margin: 0; font-size: 0.8rem;'>
-            > TACTICAL DATA STREAM | LAST 10 RECORDS | ENCRYPTED FEED
+            > TACTICAL DATA STREAM | LAST 10 RECORDS
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -711,36 +658,25 @@ with st.expander("🔍 ACCESS RAW DATA TERMINAL"):
     cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
     display_df = df[cols].tail(10).copy()
     
-    # Format and style
     def highlight_critical(val):
-        if val < 30:
-            return 'background-color: rgba(255, 0, 85, 0.3); color: #ff0055; font-weight: bold;'
-        return ''
+        return 'background-color: rgba(255, 0, 85, 0.3); color: #ff0055;' if val < 30 else ''
     
     styled_df = display_df.style.format({
-        'SPY': '${:.2f}',
-        'QQQ': '${:.2f}',
-        'RSI': '{:.1f}',
-        'Lower_Band': '${:.2f}',
-        'Drawdown': '{:.2%}'
+        'SPY': '${:.2f}', 'QQQ': '${:.2f}', 'RSI': '{:.1f}',
+        'Lower_Band': '${:.2f}', 'Drawdown': '{:.2%}'
     }).applymap(highlight_critical, subset=['RSI'])
     
     st.dataframe(styled_df, use_container_width=True)
 
-# ==========================================
-# 📡 SYSTEM FOOTER
-# ==========================================
-
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("""
 <div style='text-align: center; padding: 2rem; background: rgba(0,0,0,0.6); 
-            border-top: 2px solid #00ffff; margin-top: 2rem;'>
+            border-top: 2px solid #00ffff;'>
     <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.7rem; 
               margin: 0; letter-spacing: 2px;'>
-        🐼 PANDA TACTICAL COMMAND CENTER | v2.0 CYBERPUNK EDITION<br>
-        DATA SOURCE: YAHOO FINANCE | REFRESH CYCLE: 30 MIN<br>
+        🐼 PANDA TACTICAL COMMAND CENTER | v2.1 ENHANCED EDITION<br>
         <span style='color: #00ff00;'>● SYSTEM OPERATIONAL</span> | 
-        <span style='color: #ff00ff;'>● NETWORK SECURED</span>
+        <span style='color: #ff00ff;'>● VISUAL INDICATORS ACTIVE</span>
     </p>
 </div>
 """, unsafe_allow_html=True)
