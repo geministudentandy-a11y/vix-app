@@ -10,50 +10,59 @@ from datetime import datetime
 # ⚙️ 页面配置
 # ==========================================
 st.set_page_config(
-    page_title="Kung Fu Panda Command Center",
+    page_title="Kung Fu Panda Dashboard",
     page_icon="🐼",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed" # 默认收起侧边栏，视野更开阔
 )
 
-# ==========================================
-# 🎛️ 侧边栏：参数控制
-# ==========================================
-st.sidebar.title("🛠️ 战术参数配置")
-
-st.sidebar.subheader("🐼 熊猫 (趋势)")
-PANDA_MA = st.sidebar.number_input("SPY 均线周期", value=200)
-PANDA_MOM = st.sidebar.number_input("QQQ 动量周期", value=95)
-CB_DROP = st.sidebar.number_input("熔断阈值 (小数)", value=0.075, step=0.005, format="%.3f")
-
-st.sidebar.subheader("🏴‍☠️ 敢死队 (反转)")
-SQ_BB_N = st.sidebar.number_input("布林带周期", value=20)
-SQ_BB_STD = st.sidebar.number_input("布林带偏差", value=2.5)
-SQ_RSI_ENTRY = st.sidebar.number_input("RSI 入场阈值", value=30)
-SQ_RSI_ALERT = st.sidebar.number_input("RSI 预警阈值", value=35)
+# CSS 样式微调：隐藏图表右上角的工具栏，让界面更干净
+st.markdown("""
+<style>
+    [data-testid="stHeader"] {display: none;}
+    .modebar {display: none !important;}
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
-# 📥 数据获取与计算
+# 🎛️ 侧边栏：参数 (默认隐藏)
 # ==========================================
-@st.cache_data(ttl=3600) # 缓存1小时，避免重复下载
-def get_data():
+with st.sidebar:
+    st.header("⚙️ 战术参数")
+    st.subheader("🐼 熊猫")
+    PANDA_MA = st.number_input("SPY 均线", value=200)
+    PANDA_MOM = st.number_input("QQQ 动量", value=95)
+    CB_DROP = st.number_input("熔断阈值", value=0.075, step=0.005, format="%.3f")
+
+    st.subheader("🏴‍☠️ 敢死队")
+    SQ_BB_N = st.number_input("布林周期", value=20)
+    SQ_BB_STD = st.number_input("布林偏差", value=2.5)
+    SQ_RSI_ENTRY = st.number_input("RSI 入场", value=30)
+    SQ_RSI_ALERT = st.number_input("RSI 预警", value=35)
+
+# ==========================================
+# 📥 数据获取
+# ==========================================
+@st.cache_data(ttl=1800) 
+def get_data_and_calc():
     tickers = ['SPY', 'QQQ']
-    data = yf.download(tickers, period="2y", progress=False, auto_adjust=True)
+    # 下载数据
+    data = yf.download(tickers, period="1y", progress=False, auto_adjust=True) # 改为1年，视图更聚焦
     if isinstance(data.columns, pd.MultiIndex):
         df = data['Close'].copy()
     else:
         df = data.copy()
-    return df.dropna()
+    df = df.dropna()
 
-def calculate_metrics(df):
-    # 1. 熊猫计算
+    # --- 计算指标 ---
+    # 1. 熊猫
     df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
     df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
-    
+    # 熔断计算 (5日最高点跌幅)
     spy_max = df['SPY'].rolling(5).max()
     df['Drawdown'] = (df['SPY'] / spy_max) - 1
     
-    # 2. 敢死队计算
+    # 2. 敢死队
     sma = df['QQQ'].rolling(SQ_BB_N).mean()
     std = df['QQQ'].rolling(SQ_BB_N).std()
     df['Lower_Band'] = sma - (SQ_BB_STD * std)
@@ -67,130 +76,135 @@ def calculate_metrics(df):
     return df
 
 try:
-    with st.spinner('📡 正在连接前线数据中心...'):
-        raw_df = get_data()
-        df = calculate_metrics(raw_df)
-        
+    df = get_data_and_calc()
     latest = df.iloc[-1]
     curr_date = df.index[-1]
-    
 except Exception as e:
-    st.error(f"数据获取失败: {e}")
+    st.error(f"数据连接断开: {e}")
     st.stop()
 
 # ==========================================
-# 📊 仪表盘逻辑
+# 🧠 逻辑判定
 # ==========================================
-
-# 1. 状态判定
 # 日历
 month_end = curr_date + MonthEnd(0)
 days_to_end = (month_end - curr_date).days
 is_month_end = days_to_end == 0
 
-# 熊猫
+# 熊猫状态
 panda_bull = (latest['SPY'] > latest['SPY_MA']) and (latest['QQQ'] > latest['QQQ_MOM_Ref'])
 panda_cb = latest['Drawdown'] < -CB_DROP
 
-# 敢死队
-sq_fire = (latest['QQQ'] < latest['Lower_Band']) and (latest['RSI'] < SQ_RSI_ENTRY)
+# 敢死队状态
 dist_pct = (latest['QQQ'] - latest['Lower_Band']) / latest['QQQ'] * 100
+sq_fire = (latest['QQQ'] < latest['Lower_Band']) and (latest['RSI'] < SQ_RSI_ENTRY)
 sq_alert = (dist_pct < 2.0) or (latest['RSI'] < SQ_RSI_ALERT)
 
 # ==========================================
-# 🖥️ UI 显示层
+# 🖥️ 仪表盘 UI
 # ==========================================
 
 st.title("🐼 功夫熊猫 · 指挥官仪表盘")
-st.markdown(f"📅 **数据日期**: {curr_date.strftime('%Y-%m-%d')} | 📊 **SPY**: ${latest['SPY']:.2f} | 💻 **QQQ**: ${latest['QQQ']:.2f}")
+st.caption(f"数据更新: {curr_date.strftime('%Y-%m-%d')} | SPY: {latest['SPY']:.2f} | QQQ: {latest['QQQ']:.2f}")
 
 st.divider()
 
-# --- 三大卡片布局 ---
-col1, col2, col3 = st.columns(3)
+# --- 核心信号区 ---
+c1, c2, c3 = st.columns(3)
 
-# 卡片 1: 月度日历
-with col1:
-    st.subheader("🗓️ 月度战略")
+# 1. 月历
+with c1:
+    st.subheader("🗓️ 调仓日历")
     if is_month_end:
-        st.warning("⚠️ 今天是月底最后一天")
-        st.markdown("**👉 请检查熊猫状态决定是否调仓**")
+        st.error("⚠️ 今天是月底")
+        st.markdown("**动作: 检查熊猫状态调仓**")
     elif days_to_end <= 3:
-        st.info(f"⏳ 临近月底 (剩 {days_to_end} 天)")
+        st.warning(f"⏳ 临近月底 ({days_to_end}天)")
     else:
-        st.success(f"💤 非调仓期 (剩 {days_to_end} 天)")
-        st.caption("保持当前战略不动")
+        st.success("💤 非调仓期")
+        st.caption(f"距离月底还有 {days_to_end} 天")
 
-# 卡片 2: 敢死队 (Suicide Squad)
-with col2:
+# 2. 敢死队 (SQ)
+with c2:
     st.subheader("🏴‍☠️ 敢死队 (SQ)")
-    
     if sq_fire:
-        st.error("🔴 全员出击 (ACTIVE)")
-        st.markdown("### 👉 买入 QLD")
-        st.caption(f"击穿下轨 & RSI {latest['RSI']:.1f}")
+        st.error("🔴 全员出击")
+        st.markdown("**👉 买入 QLD**")
     elif sq_alert:
-        st.warning("🟡 高度警惕 (WATCHING)")
-        st.metric("距离下轨", f"{dist_pct:.2f}%", delta_color="inverse")
-        st.metric("当前 RSI", f"{latest['RSI']:.1f}")
+        st.warning("🟡 高度警惕")
+        st.markdown(f"**距下轨: {dist_pct:.2f}%**")
     else:
-        st.success("🟢 回营休息 (SLEEP)")
-        st.metric("安全距离", f"+{dist_pct:.2f}%")
-        st.caption(f"当前 RSI: {latest['RSI']:.1f}")
+        st.success("🟢 回营休息")
+        st.markdown(f"距下轨: +{dist_pct:.2f}%")
 
-# 卡片 3: 熊猫主力 (Panda)
-with col3:
+# 3. 熊猫主力 (含熔断灯)
+with c3:
     st.subheader("🐼 熊猫主力")
     
+    # --- 熔断信号灯逻辑 ---
     if panda_cb:
+        # 🔴 红灯闪烁 (熔断)
         st.error("🚨 熔断触发 (CRASH)")
-        st.markdown("### 👉 全换 QQQ")
-        st.caption(f"5日回撤: {latest['Drawdown']*100:.2f}%")
-    elif panda_bull:
-        st.success("🐂 牛市进攻 (BULL)")
-        st.markdown("### 👉 持有 QLD")
-        st.caption("趋势向上 & 动能充足")
+        st.markdown("### 👉 QLD 换 QQQ")
+        st.progress(100, text=f"5日暴跌: {latest['Drawdown']*100:.2f}%")
     else:
-        st.info("🐻 熊市防御 (BEAR)")
-        st.markdown("### 👉 空仓/现金")
-        st.caption("趋势转弱")
+        # 检查是否牛市
+        if panda_bull:
+            # 🟢 绿灯 (牛市)
+            st.success("🐂 牛市进攻 (BULL)")
+            st.markdown("### 👉 持有 QLD")
+            # 显示一个绿色的安全条
+            st.markdown("✅ 熔断监测: 安全")
+        else:
+            # ⚪ 灰灯 (熊市)
+            st.info("🐻 熊市防御 (BEAR)")
+            st.markdown("### 👉 空仓/现金")
+            st.markdown("✅ 熔断监测: 安全")
 
 st.divider()
 
 # ==========================================
-# 📈 交互式图表 (Plotly)
+# 📉 锁定视图的图表 (无缩放)
 # ==========================================
-st.subheader("📉 战术地形图 (QQQ)")
+st.subheader("📉 战术地形图 (固定视图)")
 
-# 创建子图: 上面是价格+布林带，下面是RSI
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                    vertical_spacing=0.05, row_heights=[0.7, 0.3])
+                    vertical_spacing=0.03, row_heights=[0.75, 0.25])
 
-# 主图: QQQ 价格
-fig.add_trace(go.Scatter(x=df.index, y=df['QQQ'], mode='lines', name='QQQ Price', line=dict(color='white', width=1)), row=1, col=1)
+# 主图: 价格 + 布林带
+fig.add_trace(go.Scatter(x=df.index, y=df['QQQ'], mode='lines', name='Price', line=dict(color='white', width=1.5)), row=1, col=1)
+fig.add_trace(go.Scatter(x=df.index, y=df['Lower_Band'], mode='lines', name='Panic Line', line=dict(color='red', width=1.5, dash='dot')), row=1, col=1)
 
-# 主图: 布林带下轨
-fig.add_trace(go.Scatter(x=df.index, y=df['Lower_Band'], mode='lines', name='Lower Band (Panic)', 
-                         line=dict(color='red', width=1, dash='dash')), row=1, col=1)
-
-# 标记: 敢死队触发点
+# 信号点
 sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
-fig.add_trace(go.Scatter(x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='SQ Buy Signal',
-                         marker=dict(color='yellow', size=10, symbol='triangle-up')), row=1, col=1)
+if len(sq_signals) > 0:
+    fig.add_trace(go.Scatter(x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='Buy Signal',
+                             marker=dict(color='yellow', size=12, symbol='triangle-up')), row=1, col=1)
 
 # 副图: RSI
-fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI', line=dict(color='#00F0FF')), row=2, col=1)
+fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI', line=dict(color='#00F0FF', width=1)), row=2, col=1)
+fig.add_hline(y=30, line_dash="solid", line_color="red", row=2, col=1)
+fig.add_hline(y=70, line_dash="solid", line_color="gray", row=2, col=1)
 
-# RSI 辅助线
-fig.add_hline(y=30, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Oversold (30)")
-fig.add_hline(y=70, line_dash="dot", line_color="gray", row=2, col=1)
+# --- 关键修改: 锁定坐标轴，禁止缩放 ---
+fig.update_layout(
+    height=500,
+    template="plotly_dark",
+    margin=dict(l=10, r=10, t=10, b=10),
+    xaxis=dict(fixedrange=True, showgrid=False),  # 锁定 X轴
+    yaxis=dict(fixedrange=True, showgrid=True, gridcolor='#333'),  # 锁定 Y轴
+    xaxis2=dict(fixedrange=True, showgrid=False), # 锁定 副图X轴
+    yaxis2=dict(fixedrange=True, showgrid=True, gridcolor='#333'), # 锁定 副图Y轴
+    showlegend=False,
+    hovermode="x unified" # 保留悬停十字光标，这是看数据的关键
+)
 
-fig.update_layout(height=600, template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
-st.plotly_chart(fig, use_container_width=True)
+#config={'staticPlot': True} 会完全变成图片，连鼠标悬停都没了。
+#config={'displayModeBar': False} 隐藏工具栏
+#配合上面的 fixedrange=True，实现了“只能看数值，不能动图表”的效果
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
-# ==========================================
-# 📋 原始数据查看
-# ==========================================
-with st.expander("🔍 查看最近 5 天详细数据"):
+# 显示详细数据表
+with st.expander("📊 查看详细数据"):
     cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
     st.dataframe(df[cols].tail(5).style.format("{:.2f}"))
