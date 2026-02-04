@@ -1,10 +1,10 @@
 """
-🐼 PANDA TACTICS - Ultimate Edition
-===================================
+🐼 PANDA TACTICS - Ultimate Visibility Edition
+==============================================
 Updates:
-1. Renamed to PANDA TACTICS
-2. Brightened Card Visuals
-3. Detailed Signal Reasons in Log
+1. Significantly increased transparency of text boxes.
+2. Boosted background image brightness and opacity.
+3. Enhanced text contrast for readability against brighter backgrounds.
 """
 
 import streamlit as st
@@ -47,54 +47,63 @@ BEAR_IMAGE = load_image_as_base64('Bear.png')
 MELTDOWN_IMAGE = load_image_as_base64('meltdown.png')
 
 # ==========================================
-# 💎 CSS 样式系统 (高亮优化版)
+# 💎 CSS 样式系统 (高通透版)
 # ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
     
     .stApp { background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 50%, #16213e 100%); background-attachment: fixed; }
-    h1, h2, h3 { font-family: 'Orbitron', monospace !important; color: #00ffff !important; }
+    h1, h2, h3 { font-family: 'Orbitron', monospace !important; color: #00ffff !important; text-shadow: 0 0 10px rgba(0,255,255,0.5); }
     
-    [data-testid="stMetricValue"] { font-family: 'Orbitron'; color: #00ff00; font-size: 1.8rem; }
+    [data-testid="stMetricValue"] { font-family: 'Orbitron'; color: #00ff00; font-size: 1.8rem; text-shadow: 0 0 10px rgba(0,255,0,0.6); }
     [data-testid="stMetricLabel"] { font-family: 'Share Tech Mono'; color: #00ffff; }
 
+    /* === 卡片基础容器 (整体透明度增加) === */
     .tactical-card-base {
-        position: relative; background: rgba(0, 0, 0, 0.9); border: 2px solid;
+        position: relative; 
+        background: rgba(0, 0, 0, 0.4); /* 显著降低整体背景黑色浓度 (原0.9) */
+        border: 2px solid;
         padding: 1.2rem; height: 360px; display: flex; flex-direction: column;
-        justify-content: space-between; overflow: hidden; box-shadow: 0 0 25px rgba(0,0,0,0.7);
+        justify-content: space-between; overflow: hidden; 
+        box-shadow: 0 0 30px rgba(0,0,0,0.8); /* 加深外部阴影以突出卡片 */
     }
     
-    /* === 视觉优化：提高图片亮度和可见度 === */
+    /* === 视觉优化：极大提高图片清晰度 === */
     .tactical-card-base::before {
         content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background-size: cover; background-position: center;
-        opacity: 0.55; /* 提高不透明度 (原0.3) */
-        filter: brightness(0.9) contrast(1.1); /* 提高亮度 (原0.6) */
+        opacity: 0.85; /* 大幅提高图片不透明度，让图更清楚 (原0.55) */
+        filter: brightness(1.1) contrast(1.2); /* 提高亮度和对比度 */
         z-index: 0;
     }
     
     .card-content { position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .card-title { font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px; font-size: 1.3rem; margin-bottom: 5px; text-shadow: 0 0 8px currentColor; }
+    /* 增加文字阴影，确保在亮背景下可读 */
+    .card-title { font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px; font-size: 1.3rem; margin-bottom: 5px; text-shadow: 2px 2px 8px rgba(0,0,0,1); }
     
-    /* === 视觉优化：加深文字背景，保证阅读 === */
+    /* === 视觉优化：数据框极高透明度 === */
     .card-data { 
         font-family: 'Share Tech Mono'; font-size: 1.0rem; color: #fff; margin: auto 0; font-weight: bold; 
-        background: rgba(0,0,0,0.85); /* 加深背景颜色 */
-        padding: 15px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); 
-        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        background: rgba(0,0,0,0.5); /* 大幅降低数据框背景浓度 (原0.85) */
+        padding: 15px; border-radius: 6px; 
+        border: 1px solid rgba(255,255,255,0.2); 
+        backdrop-filter: blur(3px); /* 增加轻微毛玻璃效果提升文字质感 */
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.8); /* 增加文字阴影 */
     }
     
+    /* === 视觉优化：底部状态栏透明 === */
     .card-status { 
         font-family: 'Orbitron'; font-size: 1.4rem; font-weight: 900; padding: 10px; 
-        border-top: 1px solid rgba(255,255,255,0.2); 
-        background: rgba(0,0,0,0.9); /* 加深底部状态栏背景 */
+        border-top: 1px solid rgba(255,255,255,0.3); 
+        background: rgba(0,0,0,0.3); /* 底部栏变得非常透明 (原0.9) */
         letter-spacing: 1px; 
+        text-shadow: 2px 2px 10px rgba(0,0,0,1); /* 强文字阴影 */
     }
     
     .scanline::after {
         content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.05) 50%, transparent 100%);
+        background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 50%, transparent 100%); /* 稍微增强扫描线 */
         animation: scan 6s linear infinite; pointer-events: none; z-index: 2;
     }
     @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
@@ -126,7 +135,7 @@ with st.sidebar:
     SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30)
 
 # ==========================================
-# 📥 数据与逻辑核心 (含原因分析)
+# 📥 数据与逻辑核心
 # ==========================================
 @st.cache_data(ttl=3600)
 def get_data_and_backtest():
@@ -184,16 +193,11 @@ def get_data_and_backtest():
     df['Strategy_Eq'] = (1 + df['Strat_Ret']).cumprod()
     df['SPY_Eq'] = (1 + df['SPY_Ret']).cumprod()
 
-    # === 状态与原因记录 (Reason Logic) ===
-    status_conds = [
-        df['Signal_Meltdown'],
-        df['Signal_Squad'],
-        df['Signal_Bull']
-    ]
+    # === 状态与原因记录 ===
+    status_conds = [df['Signal_Meltdown'], df['Signal_Squad'], df['Signal_Bull']]
     status_names = ['☢️ 熔断 (1x)', '🏴‍☠️ 突击 (2x)', '🐂 满仓 (2x)']
     df['Status_Label'] = np.select(status_conds, status_names, default='🐻 空仓 (0x)')
     
-    # === 新增：触发原因逻辑 ===
     reason_conds = [
         df['Signal_Meltdown'],
         df['Signal_Squad'],
@@ -204,7 +208,6 @@ def get_data_and_backtest():
         f"敢死队信号触发 (RSI<{SQ_RSI_ENTRY} & 破下轨)",
         "趋势向上 (SPY>MA & QQQ>MOM)"
     ]
-    # 默认空仓原因
     df['Reason'] = np.select(reason_conds, reason_names, default="趋势破坏 (跌破 MA 或 MOM)")
 
     df['Status_Change'] = df['Status_Label'] != df['Status_Label'].shift(1)
@@ -249,7 +252,7 @@ else:
     dist_to_flip = max(dist_spy_ma, dist_qqq_mom)
 
 # ==========================================
-# 🖥️ 头部 & 倒计时 (更名)
+# 🖥️ 头部 & 倒计时
 # ==========================================
 st.markdown(f"""
 <div style='text-align: center; border-bottom: 2px solid #00ffff; padding-bottom: 10px; margin-bottom: 20px;'>
@@ -265,12 +268,12 @@ with m2: st.metric("QQQ TECH", f"${latest['QQQ']:.2f}", f"{(latest['QQQ']-prev['
 with m3: st.metric("VIX FEAR", f"{latest['VIX']:.2f}", f"{(latest['VIX']-prev['VIX'])/prev['VIX']*100:+.2f}%", delta_color="inverse")
 with m4:
     color = "#ff0055" if days_to_rebalance == 0 else "#00ffff"
-    st.markdown(f"<div style='text-align: center;'><p style='margin:0; font-family: Share Tech Mono; color: #888;'>REBALANCE COUNTDOWN</p><p style='margin:0; font-family: Orbitron; font-size: 2rem; color: {color};'>T-{days_to_rebalance} DAYS</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: center;'><p style='margin:0; font-family: Share Tech Mono; color: #888;'>REBALANCE COUNTDOWN</p><p style='margin:0; font-family: Orbitron; font-size: 2rem; color: {color}; text-shadow: 0 0 10px {color};'>T-{days_to_rebalance} DAYS</p></div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 🎴 战术卡片 (更明亮)
+# 🎴 战术卡片 (高通透版)
 # ==========================================
 c1, c2, c3 = st.columns(3)
 def clean_html(html_str): 
@@ -285,8 +288,8 @@ with c1:
     <style>.card-1::before {{ background-image: url('data:image/png;base64,{MELTDOWN_IMAGE}'); }}</style>
     <div class='card-content'><div class='card-title' style='color: {border_c};'>☢️ 熔断监测 (MELTDOWN)</div>
     <div class='card-data'><div>当前回撤: <span style='color: #ff0055;'>{current_dd_pct*100:.2f}%</span></div>
-    <div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>触发阈值: {CB_DROP*100:.1f}%</div>
-    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>离熔断触发还差: <br><span style='font-size: 1.8rem; color: #ff0055;'>{dist_to_meltdown:.2f}%</span> 跌幅</div></div>
+    <div style='margin-top: 5px; border-top: 1px dashed #ccc; padding-top:5px;'>触发阈值: {CB_DROP*100:.1f}%</div>
+    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px; text-shadow: 1px 1px 2px black;'>离熔断触发还差: <br><span style='font-size: 1.8rem; color: #ff0055; text-shadow: 0 0 10px #ff0055;'>{dist_to_meltdown:.2f}%</span> 跌幅</div></div>
     <div class='card-status' style='color: {border_c};'>{status_text}</div></div></div>
     """
     st.markdown(clean_html(html_1), unsafe_allow_html=True)
@@ -304,8 +307,8 @@ with c2:
     <style>.card-2::before {{ background-image: url('data:image/png;base64,{bg_img}'); }}</style>
     <div class='card-content'><div class='card-title' style='color: {state_color};'>🏴‍☠️ 敢死队 (SQUAD)</div>
     <div class='card-data'><div>当前价格: <span style='color: {state_color};'>${price_qqq:.2f}</span></div>
-    <div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>下轨触发价: ${lower_band:.2f}</div>
-    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>离突击区还差: <br><span style='font-size: 1.8rem; color: {state_color};'>{dist_val}</span> {dist_unit}</div></div>
+    <div style='margin-top: 5px; border-top: 1px dashed #ccc; padding-top:5px;'>下轨触发价: ${lower_band:.2f}</div>
+    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px; text-shadow: 1px 1px 2px black;'>离突击区还差: <br><span style='font-size: 1.8rem; color: {state_color}; text-shadow: 0 0 10px {state_color};'>{dist_val}</span> {dist_unit}</div></div>
     <div class='card-status' style='color: {state_color};'>{state_text}</div></div></div>
     """
     st.markdown(clean_html(html_2), unsafe_allow_html=True)
@@ -323,8 +326,8 @@ with c3:
     <style>.card-3::before {{ background-image: url('data:image/png;base64,{bg_img}'); }}</style>
     <div class='card-content'><div class='card-title' style='color: {state_color};'>🐼 熊猫主力 (MAIN)</div>
     <div class='card-data'><div>当前趋势: <span style='color: {state_color};'>{'多头' if is_bull else '空头'}</span></div>
-    <div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>反转条件: MA/MOM</div>
-    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>{dist_label}: <br><span style='font-size: 1.8rem; color: {dist_color};'>{dist_to_flip:.2f}%</span> {dist_unit_p}</div></div>
+    <div style='margin-top: 5px; border-top: 1px dashed #ccc; padding-top:5px;'>反转条件: MA/MOM</div>
+    <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px; text-shadow: 1px 1px 2px black;'>{dist_label}: <br><span style='font-size: 1.8rem; color: {dist_color}; text-shadow: 0 0 10px {dist_color};'>{dist_to_flip:.2f}%</span> {dist_unit_p}</div></div>
     <div class='card-status' style='color: {state_color};'>{state_text}</div></div></div>
     """
     st.markdown(clean_html(html_3), unsafe_allow_html=True)
@@ -391,7 +394,7 @@ log_html = "<div class='log-container'>"
 
 for date, row in changes.iterrows():
     status = row['Status_Label']
-    reason = row['Reason'] # 获取触发原因
+    reason = row['Reason']
     color = "#fff"
     if "满仓" in status: color = "#00ff00"
     elif "空仓" in status: color = "#00bfff"
@@ -400,12 +403,12 @@ for date, row in changes.iterrows():
     
     log_html += f"""
     <div class='log-item' style='border-left-color: {color};'>
-        <div>
-            <span style='color: #888;'>[{date.strftime('%Y-%m-%d')}]</span> 
-            <span style='color: {color}; font-weight: bold; margin-left: 10px; font-size: 1.1rem;'>{status}</span>
+        <div style='flex-grow: 1;'>
+            <span style='color: #888; font-size: 0.9rem;'>[{date.strftime('%Y-%m-%d')}]</span> 
+            <span style='color: {color}; font-weight: bold; margin-left: 10px; font-size: 1.1rem; text-shadow: 0 0 5px {color};'>{status}</span>
         </div>
         <div class='log-reason'>
-            ➤ 触发信号: {reason}
+            ➤ {reason}
         </div>
     </div>
     """
