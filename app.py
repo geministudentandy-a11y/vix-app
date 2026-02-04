@@ -2,7 +2,7 @@
 🐼 PANDA TACTICAL COMMAND CENTER - Enhanced Edition
 ====================================================
 Cyberpunk dashboard with dynamic visual status indicators
-Updated: Added Bull/Bear images for Panda Force signal & Robust path handling.
+Updated: Added background image for Rebalance Protocol card.
 """
 
 import streamlit as st
@@ -36,7 +36,7 @@ def load_image_as_base64(filename):
     如果找不到图片，返回一个透明像素，防止程序崩溃。
     """
     possible_paths = [
-        filename,                          # 优先找根目录 (根据你的截图，图片在这里)
+        filename,                          # 优先找根目录
         os.path.join("images", filename),  # 其次找 images 文件夹
         os.path.join(os.getcwd(), filename),
     ]
@@ -53,7 +53,7 @@ def load_image_as_base64(filename):
     print(f"⚠️ Warning: Image {filename} not found.")
     return "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" # 1x1透明GIF
 
-# 加载图片 (严格匹配截图中的文件名大小写)
+# === 加载所有战术图片 ===
 # Suicide Squad Images
 REST_IMAGE = load_image_as_base64('rest.png')
 ATTACK_IMAGE = load_image_as_base64('attack.png')
@@ -61,6 +61,9 @@ ATTACK_IMAGE = load_image_as_base64('attack.png')
 # Panda Force Images
 BULL_IMAGE = load_image_as_base64('Bull.png') 
 BEAR_IMAGE = load_image_as_base64('Bear.png')
+
+# Rebalance Image (New!)
+REBALANCE_IMAGE = load_image_as_base64('rebalance.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
@@ -310,12 +313,20 @@ st.markdown("""
 
 col1, col2, col3 = st.columns(3)
 
-# === CARD 1: REBALANCE PROTOCOL ===
+# === CARD 1: REBALANCE PROTOCOL (Updated with rebalance.png) ===
 with col1:
-    st.markdown("""
-    <div class='tactical-card-base scanline' style='border-color: #00ffff; height: 320px;'>
+    # Set border color: Red if it's month end (Urgent), Cyan otherwise
+    reb_border = "#ff0055" if is_month_end else "#00ffff"
+    reb_glow = "255, 0, 85" if is_month_end else "0, 255, 255"
+
+    st.markdown(f"""
+    <div class='tactical-card-base scanline rebalance-card' style='border-color: {reb_border}; 
+                box-shadow: 0 0 30px rgba({reb_glow}, 0.3);'>
+        <style>
+            .rebalance-card::before {{ background-image: url('data:image/png;base64,{REBALANCE_IMAGE}'); }}
+        </style>
         <div class='tactical-card-content'>
-            <p style='font-family: Orbitron; color: #00ffff; font-size: 1.2rem; 
+            <p style='font-family: Orbitron; color: {reb_border}; font-size: 1.2rem; 
                       margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
                 🗓️ REBALANCE
             </p>
@@ -323,13 +334,13 @@ with col1:
     
     if is_month_end:
         st.markdown("""
-        <div style='background: rgba(255,0,0,0.2); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center; margin-top: 2rem;'>
-            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900;'>
+        <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
+                    padding: 1rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #ff0055;'>
+            <p style='font-family: Orbitron; color: #ffffff; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900; text-shadow: 0 0 10px black;'>
                 ⚠️ EXECUTE
             </p>
-            <p style='font-family: Share Tech Mono; color: #ff0055; 
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
                       font-size: 0.8rem; margin: 0.5rem 0 0 0;'>
                 IMMEDIATE ACTION
             </p>
@@ -338,9 +349,9 @@ with col1:
     else:
         progress = max(0, min(100, int((1 - days_to_end/30) * 100)))
         st.markdown(f"""
-        <div style='margin-top: 2rem;'>
+        <div style='margin-top: 2rem; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;'>
             <p style='font-family: Share Tech Mono; color: #00ff00; 
-                      font-size: 1.8rem; text-align: center; margin: 1rem 0;'>
+                      font-size: 1.8rem; text-align: center; margin: 0;'>
                 T-{days_to_end} DAYS
             </p>
         </div>
@@ -364,7 +375,6 @@ with col2:
         sq_border = "#00ff00" # Green
         sq_glow = "0, 255, 0"
     
-    # Use 'sq-card' class to isolate CSS
     st.markdown(f"""
     <div class='tactical-card-base scanline sq-card' style='border-color: {sq_border}; 
                 box-shadow: 0 0 30px rgba({sq_glow}, 0.3);'>
@@ -372,7 +382,7 @@ with col2:
             .sq-card::before {{ background-image: url('data:image/png;base64,{sq_bg}'); }}
         </style>
         <div class='tactical-card-content'>
-            <p style='font-family: Orbitron; color: #ff00ff; font-size: 1.2rem; 
+            <p style='font-family: Orbitron; color: {sq_border}; font-size: 1.2rem; 
                       margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
                 🏴‍☠️ SUICIDE SQUAD
             </p>
@@ -421,23 +431,21 @@ with col2:
     
     st.markdown("</div></div>", unsafe_allow_html=True)
 
-# === CARD 3: PANDA FORCE (Now with Bull/Bear Images) ===
+# === CARD 3: PANDA FORCE (With Bull/Bear Images) ===
 with col3:
-    # Determine Status and Image
     if panda_cb:
-        panda_bg = BEAR_IMAGE # Emergency = Bear Image
+        panda_bg = BEAR_IMAGE 
         panda_border = "#ff0055" # Red
         panda_glow = "255, 0, 85"
     elif panda_bull:
-        panda_bg = BULL_IMAGE # Bull Image
+        panda_bg = BULL_IMAGE 
         panda_border = "#00ff00" # Green
         panda_glow = "0, 255, 0"
     else:
-        panda_bg = BEAR_IMAGE # Bear Image
+        panda_bg = BEAR_IMAGE 
         panda_border = "#00bfff" # Blue
         panda_glow = "0, 191, 255"
 
-    # Use 'panda-card' class to isolate CSS
     st.markdown(f"""
     <div class='tactical-card-base scanline panda-card' style='border-color: {panda_border}; 
                 box-shadow: 0 0 30px rgba({panda_glow}, 0.3);'>
@@ -616,9 +624,9 @@ st.markdown("""
             border-top: 2px solid #00ffff;'>
     <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.7rem; 
               margin: 0; letter-spacing: 2px;'>
-        🐼 PANDA TACTICAL COMMAND CENTER | v2.2 FULL VISUAL EDITION<br>
+        🐼 PANDA TACTICAL COMMAND CENTER | v2.3 FULL VISUAL EDITION<br>
         <span style='color: #00ff00;'>● SYSTEM OPERATIONAL</span> | 
-        <span style='color: #ff00ff;'>● ALL ASSETS LOADED</span>
+        <span style='color: #ff00ff;'>● ASSETS SYNCED</span>
     </p>
 </div>
 """, unsafe_allow_html=True)
