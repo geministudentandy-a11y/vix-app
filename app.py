@@ -1,12 +1,7 @@
 """
-🐼 PANDA COMMANDER - Trading Strategy Dashboard
-================================================
-A Streamlit-based trading dashboard that implements two strategies:
-1. Panda Main Force (熊猫主力): Trend-following with circuit breaker
-2. Suicide Squad (敢死队): Mean-reversion based on Bollinger Bands & RSI
-
-Author: Beautified Version
-Last Updated: 2025
+🐼 PANDA TACTICAL COMMAND CENTER
+================================
+Cyberpunk-inspired trading dashboard with holographic UI
 """
 
 import streamlit as st
@@ -16,118 +11,278 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
-
+import time
 
 # ==========================================
-# 🎨 PAGE CONFIGURATION & STYLING
+# 🎨 PAGE CONFIGURATION
 # ==========================================
 
 st.set_page_config(
-    page_title="PANDA COMMANDER",
+    page_title="PANDA TACTICAL COMMAND",
     page_icon="🐼",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for enhanced UI
+# ==========================================
+# 💎 CYBERPUNK CSS INJECTION
+# ==========================================
+
 st.markdown("""
 <style>
-    /* Hide default Streamlit elements */
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+    
+    /* ===== HIDE STREAMLIT DEFAULTS ===== */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    .stDeployButton {display: none;}
     
-    /* Global font optimization */
+    /* ===== GLOBAL DARK CYBERPUNK THEME ===== */
+    .stApp {
+        background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 50%, #16213e 100%);
+        background-attachment: fixed;
+    }
+    
+    /* Animated grid overlay */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 50px 50px;
+        pointer-events: none;
+        z-index: 0;
+        animation: gridPulse 4s ease-in-out infinite;
+    }
+    
+    @keyframes gridPulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.6; }
+    }
+    
+    /* ===== TYPOGRAPHY ===== */
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1rem;
         padding-bottom: 2rem;
+        position: relative;
+        z-index: 1;
     }
     
-    /* Metric card styling */
+    h1, h2, h3, .stMarkdown p {
+        font-family: 'Orbitron', monospace !important;
+        color: #00ffff !important;
+        text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+    
+    h1 {
+        font-size: 3rem !important;
+        font-weight: 900 !important;
+        letter-spacing: 4px;
+        background: linear-gradient(90deg, #00ffff, #ff00ff, #00ffff);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gradientShift 3s linear infinite;
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% center; }
+        100% { background-position: 200% center; }
+    }
+    
+    /* ===== METRIC CARDS - HOLOGRAPHIC STYLE ===== */
     [data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
-        font-weight: 700;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.9rem !important;
-        color: #9CA3AF;
+        font-family: 'Orbitron', monospace !important;
+        font-size: 2.2rem !important;
+        font-weight: 900 !important;
+        color: #00ff00 !important;
+        text-shadow: 0 0 20px rgba(0, 255, 0, 0.8),
+                     0 0 40px rgba(0, 255, 0, 0.4);
+        filter: drop-shadow(0 0 5px #00ff00);
     }
     
-    /* Alert box refinement */
+    [data-testid="stMetricLabel"] {
+        font-family: 'Share Tech Mono', monospace !important;
+        font-size: 0.75rem !important;
+        color: #00ffff !important;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        opacity: 0.9;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        font-family: 'Share Tech Mono', monospace !important;
+        font-size: 0.9rem !important;
+    }
+    
+    /* ===== ALERT BOXES - NEON BORDERS ===== */
     .stAlert {
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
+        border: 2px solid;
+        border-radius: 0;
+        font-family: 'Share Tech Mono', monospace !important;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        animation: borderPulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes borderPulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 0, 0.3); }
+        50% { box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); }
+    }
+    
+    [data-baseweb="notification"] {
+        background: rgba(255, 0, 0, 0.1) !important;
+        border-color: #ff0055 !important;
+    }
+    
+    /* ===== PROGRESS BAR - HOLOGRAPHIC ===== */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #00ffff, #ff00ff);
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+        animation: progressGlow 2s ease-in-out infinite;
+    }
+    
+    @keyframes progressGlow {
+        0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
+        50% { box-shadow: 0 0 25px rgba(0, 255, 255, 0.8); }
+    }
+    
+    /* ===== SIDEBAR - CONTROL PANEL ===== */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0a0e27 0%, #1a1a2e 100%);
+        border-right: 2px solid #00ffff;
+        box-shadow: 5px 0 30px rgba(0, 255, 255, 0.2);
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown {
+        color: #00ffff !important;
+    }
+    
+    /* ===== INPUT FIELDS - TACTICAL STYLE ===== */
+    .stNumberInput input {
+        background: rgba(0, 0, 0, 0.6) !important;
+        border: 1px solid #00ffff !important;
+        color: #00ff00 !important;
+        font-family: 'Share Tech Mono', monospace !important;
+        box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
+    }
+    
+    .stNumberInput input:focus {
+        border-color: #ff00ff !important;
+        box-shadow: 0 0 20px rgba(255, 0, 255, 0.4) !important;
+    }
+    
+    /* ===== DATAFRAME - TERMINAL STYLE ===== */
+    [data-testid="stDataFrame"] {
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid #00ffff;
+        font-family: 'Share Tech Mono', monospace !important;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+    }
+    
+    /* ===== EXPANDER - COLLAPSIBLE TERMINAL ===== */
+    .streamlit-expanderHeader {
+        background: rgba(0, 255, 255, 0.1) !important;
+        border: 1px solid #00ffff !important;
+        border-radius: 0 !important;
+        font-family: 'Orbitron', monospace !important;
+        color: #00ffff !important;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: rgba(0, 255, 255, 0.2) !important;
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+    }
+    
+    /* ===== CUSTOM GLITCH EFFECT ===== */
+    .glitch {
+        animation: glitch 1s infinite;
+    }
+    
+    @keyframes glitch {
+        0%, 90%, 100% { transform: translate(0); }
+        92% { transform: translate(-2px, 2px); }
+        94% { transform: translate(2px, -2px); }
+        96% { transform: translate(-2px, -2px); }
+        98% { transform: translate(2px, 2px); }
+    }
+    
+    /* ===== SCANLINE EFFECT ===== */
+    .scanline {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .scanline::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(0, 255, 255, 0.1) 50%,
+            transparent 100%
+        );
+        animation: scan 4s linear infinite;
+        pointer-events: none;
+    }
+    
+    @keyframes scan {
+        0% { transform: translateY(-100%); }
+        100% { transform: translateY(100%); }
     }
 </style>
 """, unsafe_allow_html=True)
 
-
 # ==========================================
-# ⚙️ SIDEBAR CONFIGURATION
+# ⚙️ TACTICAL CONTROL PANEL (SIDEBAR)
 # ==========================================
 
 with st.sidebar:
-    st.title("⚙️ Strategy Parameters")
+    st.markdown("# ⚙️ CONTROL PANEL")
     st.markdown("---")
     
-    # Panda Main Force settings
-    st.caption("🐼 Panda Main Force")
-    PANDA_MA = st.number_input(
-        "SPY Moving Average (MA)", 
-        value=200, 
-        help="Trend filter for SPY"
-    )
-    PANDA_MOM = st.number_input(
-        "QQQ Momentum (Days)", 
-        value=95,
-        help="Lookback period for QQQ momentum"
-    )
-    CB_DROP = st.number_input(
-        "Circuit Breaker Threshold", 
-        value=0.075, 
-        step=0.005, 
-        format="%.3f",
-        help="Drawdown threshold to trigger emergency exit"
-    )
+    st.markdown("### 🐼 PANDA PROTOCOLS")
+    PANDA_MA = st.number_input("SPY MA FILTER", value=200, help="Moving average threshold")
+    PANDA_MOM = st.number_input("QQQ MOMENTUM", value=95, help="Momentum lookback period")
+    CB_DROP = st.number_input("CIRCUIT BREAKER", value=0.075, step=0.005, format="%.3f", 
+                              help="Emergency exit threshold")
     
     st.markdown("---")
+    st.markdown("### 🏴‍☠️ SQUAD PARAMETERS")
+    SQ_BB_N = st.number_input("BB PERIOD", value=20, help="Bollinger band calculation period")
+    SQ_BB_STD = st.number_input("BB DEVIATION", value=2.5, help="Standard deviation multiplier")
+    SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30, help="RSI entry threshold")
     
-    # Suicide Squad settings
-    st.caption("🏴‍☠️ Suicide Squad")
-    SQ_BB_N = st.number_input(
-        "Bollinger Period", 
-        value=20,
-        help="Number of periods for Bollinger Bands calculation"
-    )
-    SQ_BB_STD = st.number_input(
-        "Bollinger Std Dev", 
-        value=2.5,
-        help="Standard deviation multiplier for bands"
-    )
-    SQ_RSI_ENTRY = st.number_input(
-        "RSI Entry Threshold", 
-        value=30,
-        help="RSI level to trigger buy signal"
-    )
-
+    st.markdown("---")
+    st.markdown(f"""
+    <div style='text-align: center; padding: 1rem; background: rgba(0,255,255,0.1); 
+                border: 1px solid #00ffff; margin-top: 2rem;'>
+        <p style='font-family: Share Tech Mono; font-size: 0.7rem; color: #00ffff; margin: 0;'>
+            SYSTEM ONLINE<br>
+            <span style='color: #00ff00;'>● ACTIVE</span>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ==========================================
-# 📥 DATA ENGINE
+# 📥 DATA CORE
 # ==========================================
 
 @st.cache_data(ttl=1800)
 def get_market_data():
-    """
-    Fetch and process market data with technical indicators.
-    
-    Returns:
-        pd.DataFrame: Processed dataframe with all technical indicators
-    """
-    # Download data
     tickers = ['SPY', 'QQQ']
     data = yf.download(tickers, period="1y", progress=False, auto_adjust=True)
     
-    # Handle multi-index columns
     if isinstance(data.columns, pd.MultiIndex):
         df = data['Close'].copy()
     else:
@@ -135,22 +290,17 @@ def get_market_data():
     
     df = df.dropna()
     
-    # --- Calculate Technical Indicators ---
-    
-    # 1. Panda indicators
+    # Technical indicators
     df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
     df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
     
-    # 2. Drawdown calculation
     spy_max = df['SPY'].rolling(5).max()
     df['Drawdown'] = (df['SPY'] / spy_max) - 1
     
-    # 3. Bollinger Bands
     sma = df['QQQ'].rolling(SQ_BB_N).mean()
     std = df['QQQ'].rolling(SQ_BB_N).std()
     df['Lower_Band'] = sma - (SQ_BB_STD * std)
     
-    # 4. RSI calculation
     delta = df['QQQ'].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -159,286 +309,438 @@ def get_market_data():
     
     return df
 
-
-# Fetch data with error handling
+# Fetch data
 try:
     df = get_market_data()
     latest = df.iloc[-1]
     curr_date = df.index[-1]
 except Exception as e:
-    st.error(f"🚨 System Offline: {e}")
+    st.error(f"⚠️ SYSTEM FAILURE: {e}")
     st.stop()
 
-
 # ==========================================
-# 🧠 CORE STRATEGY LOGIC
+# 🧠 STRATEGY LOGIC CORE
 # ==========================================
 
-# --- 1. Monthly Rebalance Logic ---
 month_end = curr_date + MonthEnd(0)
 days_to_end = (month_end - curr_date).days
 is_month_end = days_to_end == 0
 
-# --- 2. Panda Main Force Logic ---
-panda_bull = (
-    latest['SPY'] > latest['SPY_MA'] and 
-    latest['QQQ'] > latest['QQQ_MOM_Ref']
-)
+panda_bull = latest['SPY'] > latest['SPY_MA'] and latest['QQQ'] > latest['QQQ_MOM_Ref']
 panda_cb = latest['Drawdown'] < -CB_DROP
 
-# --- 3. Suicide Squad Logic ---
 dist_val = latest['QQQ'] - latest['Lower_Band']
 dist_pct = (dist_val / latest['QQQ']) * 100
-sq_fire = (
-    latest['QQQ'] < latest['Lower_Band'] and 
-    latest['RSI'] < SQ_RSI_ENTRY
-)
+sq_fire = latest['QQQ'] < latest['Lower_Band'] and latest['RSI'] < SQ_RSI_ENTRY
 sq_alert = dist_pct < 2.0
 
-
 # ==========================================
-# 🖥️ DASHBOARD LAYOUT
+# 🎮 COMMAND CENTER INTERFACE
 # ==========================================
 
-# --- Top Bar: Market Overview ---
-col_head1, col_head2 = st.columns([2, 1])
+# === HEADER: TACTICAL OVERVIEW ===
+st.markdown(f"""
+<div style='text-align: center; padding: 2rem 0 1rem 0;'>
+    <h1 class='glitch'>🐼 PANDA TACTICAL COMMAND</h1>
+    <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.9rem; letter-spacing: 3px;'>
+        LAST SYNC: {curr_date.strftime('%Y.%m.%d')} | 
+        NETWORK: <span style='color: #00ff00;'>SECURED</span> | 
+        STATUS: <span style='color: #ff00ff;'>OPERATIONAL</span>
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-with col_head1:
-    st.title("🐼 PANDA COMMANDER")
-    market_status = 'OPEN' if datetime.now().hour < 21 else 'CLOSED'
-    st.caption(
-        f"LAST UPDATE: {curr_date.strftime('%Y-%m-%d')} | "
-        f"MARKET STATUS: {market_status}"
-    )
+# === QUICK STATUS BAR ===
+col_q1, col_q2, col_q3, col_q4 = st.columns(4)
 
-with col_head2:
-    # Mini ticker board
-    c1, c2 = st.columns(2)
-    spy_change = df['SPY'].diff().iloc[-1]
-    qqq_change = df['QQQ'].diff().iloc[-1]
-    
-    c1.metric("SPY", f"{latest['SPY']:.1f}", delta=f"{spy_change:.2f}")
-    c2.metric("QQQ", f"{latest['QQQ']:.1f}", delta=f"{qqq_change:.2f}")
+with col_q1:
+    spy_delta = df['SPY'].diff().iloc[-1]
+    st.metric("SPY INDEX", f"${latest['SPY']:.2f}", f"{spy_delta:+.2f}")
 
-st.markdown("---")
+with col_q2:
+    qqq_delta = df['QQQ'].diff().iloc[-1]
+    st.metric("QQQ INDEX", f"${latest['QQQ']:.2f}", f"{qqq_delta:+.2f}")
 
+with col_q3:
+    rsi_color = "inverse" if latest['RSI'] < 30 else "normal"
+    st.metric("RSI LEVEL", f"{latest['RSI']:.1f}", 
+              "OVERSOLD" if latest['RSI'] < 30 else "NORMAL",
+              delta_color=rsi_color)
 
-# --- Strategy Cards (3-Column Layout) ---
+with col_q4:
+    vol_change = ((df['QQQ'].iloc[-1] / df['QQQ'].iloc[-2] - 1) * 100)
+    st.metric("VOLATILITY", f"{abs(vol_change):.2f}%", 
+              f"{vol_change:+.2f}%")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# === MISSION STATUS GRID ===
+st.markdown("""
+<div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
+            padding: 0.5rem; margin-bottom: 2rem; box-shadow: 0 0 20px rgba(0,255,255,0.2);'>
+    <p style='font-family: Orbitron; color: #00ffff; text-align: center; 
+              margin: 0; font-size: 1.1rem; letter-spacing: 3px;'>
+        ▸ TACTICAL STATUS GRID ◂
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 col1, col2, col3 = st.columns(3)
 
-# Card 1: Monthly Rebalance Indicator
+# === CARD 1: REBALANCE COUNTDOWN ===
 with col1:
-    st.subheader("🗓️ Monthly Rebalance")
+    st.markdown("""
+    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ffff; 
+                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(0,255,255,0.2);'>
+        <p style='font-family: Orbitron; color: #00ffff; font-size: 1.2rem; 
+                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
+            🗓️ REBALANCE PROTOCOL
+        </p>
+    """, unsafe_allow_html=True)
     
     if is_month_end:
-        st.error("⚠️ REBALANCE DAY")
-        st.markdown("**Action: Review Panda status and adjust positions**")
+        st.markdown("""
+        <div style='background: rgba(255,0,0,0.2); border: 2px solid #ff0055; 
+                    padding: 1rem; text-align: center; animation: borderPulse 1s infinite;'>
+            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900;'>
+                ⚠️ EXECUTE NOW
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ff0055; 
+                      font-size: 0.8rem; margin: 0.5rem 0 0 0;'>
+                IMMEDIATE ACTION REQUIRED
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         progress = max(0, min(100, int((1 - days_to_end/30) * 100)))
-        st.metric(
-            "Days to Month End", 
-            f"{days_to_end} days", 
-            delta="Off-cycle", 
-            delta_color="off"
-        )
-        st.progress(progress, text="Monthly Progress")
+        st.markdown(f"""
+        <p style='font-family: Share Tech Mono; color: #00ff00; 
+                  font-size: 1.8rem; text-align: center; margin: 1rem 0;'>
+            T-{days_to_end} DAYS
+        </p>
+        """, unsafe_allow_html=True)
+        st.progress(progress, text=f"CYCLE PROGRESS: {progress}%")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Card 2: Suicide Squad Status
+# === CARD 2: SUICIDE SQUAD ===
 with col2:
-    st.subheader("🏴‍☠️ Suicide Squad")
+    st.markdown("""
+    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #ff00ff; 
+                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(255,0,255,0.2);'>
+        <p style='font-family: Orbitron; color: #ff00ff; font-size: 1.2rem; 
+                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
+            🏴‍☠️ SUICIDE SQUAD
+        </p>
+    """, unsafe_allow_html=True)
     
     if sq_fire:
-        st.error("🔴 ACTIVE: Full Deployment")
-        st.metric(
-            "Trade Signal", 
-            "BUY QLD", 
-            delta="SIGNAL FIRED", 
-            delta_color="inverse"
-        )
+        st.markdown("""
+        <div style='background: rgba(255,0,0,0.3); border: 2px solid #ff0055; 
+                    padding: 1rem; text-align: center; animation: borderPulse 1s infinite;'>
+            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
+                🔴 DEPLOY
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
+                      font-size: 1.2rem; margin: 0.5rem 0 0 0;'>
+                BUY QLD
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ff0055; 
+                      font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
+                SIGNAL: ACTIVE
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     elif sq_alert:
-        st.warning("🟡 WARNING: High Alert")
-        st.metric(
-            "Distance to Band", 
-            f"{dist_pct:.2f}%", 
-            delta="Near trigger", 
-            delta_color="inverse"
-        )
+        st.markdown(f"""
+        <div style='background: rgba(255,165,0,0.2); border: 2px solid #ffa500; 
+                    padding: 1rem; text-align: center;'>
+            <p style='font-family: Orbitron; color: #ffa500; font-size: 1.3rem; 
+                      margin: 0; font-weight: 700;'>
+                🟡 ALERT
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
+                      font-size: 1.5rem; margin: 0.5rem 0;'>
+                {dist_pct:.2f}%
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ffa500; 
+                      font-size: 0.7rem; margin: 0;'>
+                PROXIMITY WARNING
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.success("🟢 SLEEP: Stand Down")
-        st.metric(
-            "Safety Margin", 
-            f"+{dist_pct:.2f}%", 
-            f"RSI: {latest['RSI']:.1f}"
-        )
+        st.markdown(f"""
+        <div style='background: rgba(0,255,0,0.1); border: 2px solid #00ff00; 
+                    padding: 1rem; text-align: center;'>
+            <p style='font-family: Orbitron; color: #00ff00; font-size: 1.3rem; 
+                      margin: 0; font-weight: 700;'>
+                🟢 STANDBY
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
+                      font-size: 1.5rem; margin: 0.5rem 0;'>
+                +{dist_pct:.2f}%
+            </p>
+            <p style='font-family: Share Tech Mono; color: #00ff00; 
+                      font-size: 0.7rem; margin: 0;'>
+                RSI: {latest['RSI']:.1f} | SAFE
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Card 3: Panda Main Force Status
+# === CARD 3: PANDA MAIN FORCE ===
 with col3:
-    st.subheader("🐼 Panda Main Force")
+    st.markdown("""
+    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ff00; 
+                padding: 1.5rem; height: 280px; box-shadow: 0 0 30px rgba(0,255,0,0.2);'>
+        <p style='font-family: Orbitron; color: #00ff00; font-size: 1.2rem; 
+                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
+            🐼 PANDA FORCE
+        </p>
+    """, unsafe_allow_html=True)
     
     if panda_cb:
-        st.error("🚨 CRASH: Circuit Breaker Triggered")
-        st.metric(
-            "Emergency Action", 
-            "Switch to QQQ", 
-            delta=f"Drop: {latest['Drawdown']*100:.1f}%", 
-            delta_color="inverse"
-        )
+        st.markdown(f"""
+        <div style='background: rgba(255,0,0,0.3); border: 2px solid #ff0055; 
+                    padding: 1rem; text-align: center; animation: borderPulse 0.5s infinite;'>
+            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
+                🚨 EMERGENCY
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
+                      font-size: 1.2rem; margin: 0.5rem 0;'>
+                SWITCH TO QQQ
+            </p>
+            <p style='font-family: Share Tech Mono; color: #ff0055; 
+                      font-size: 0.9rem; margin: 0.5rem 0 0 0;'>
+                DROP: {latest['Drawdown']*100:.2f}%
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         if panda_bull:
-            st.success("🐂 BULL: Trend Offensive")
-            st.metric(
-                "Position", 
-                "QLD (2x)", 
-                delta="Circuit breaker: OK"
-            )
+            st.markdown("""
+            <div style='background: rgba(0,255,0,0.2); border: 2px solid #00ff00; 
+                        padding: 1rem; text-align: center;'>
+                <p style='font-family: Orbitron; color: #00ff00; font-size: 1.5rem; 
+                          margin: 0; font-weight: 900; text-shadow: 0 0 20px #00ff00;'>
+                    🐂 BULL MODE
+                </p>
+                <p style='font-family: Share Tech Mono; color: #ffffff; 
+                          font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
+                    QLD (2X)
+                </p>
+                <p style='font-family: Share Tech Mono; color: #00ff00; 
+                          font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
+                    AGGRESSIVE STANCE
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.info("🐻 BEAR: Trend Defensive")
-            st.metric(
-                "Position", 
-                "CASH (0x)", 
-                delta="Risk-off mode", 
-                delta_color="off"
-            )
+            st.markdown("""
+            <div style='background: rgba(0,191,255,0.1); border: 2px solid #00bfff; 
+                        padding: 1rem; text-align: center;'>
+                <p style='font-family: Orbitron; color: #00bfff; font-size: 1.5rem; 
+                          margin: 0; font-weight: 700;'>
+                    🐻 BEAR MODE
+                </p>
+                <p style='font-family: Share Tech Mono; color: #ffffff; 
+                          font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
+                    CASH (0X)
+                </p>
+                <p style='font-family: Share Tech Mono; color: #00bfff; 
+                          font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
+                    DEFENSIVE POSITION
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("---")
-
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 📈 TACTICAL CHART
+# 📈 HOLOGRAPHIC TACTICAL DISPLAY
 # ==========================================
 
-st.subheader("📉 Tactical Map")
+st.markdown("""
+<div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
+            padding: 0.5rem; margin-bottom: 1rem; box-shadow: 0 0 20px rgba(0,255,255,0.2);'>
+    <p style='font-family: Orbitron; color: #00ffff; text-align: center; 
+              margin: 0; font-size: 1.1rem; letter-spacing: 3px;'>
+        ▸ HOLOGRAPHIC TACTICAL DISPLAY ◂
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# Create subplot figure
+# Create advanced chart
 fig = make_subplots(
-    rows=2, 
-    cols=1, 
+    rows=2, cols=1, 
     shared_xaxes=True,
-    vertical_spacing=0.05, 
-    row_heights=[0.75, 0.25]
+    vertical_spacing=0.08,
+    row_heights=[0.7, 0.3],
+    subplot_titles=('PRICE MATRIX', 'RSI SCANNER')
 )
 
-# --- Top Panel: Price & Bollinger Bands ---
-
-# Price line (white)
+# === Price Chart with Neon Effect ===
 fig.add_trace(
     go.Scatter(
         x=df.index, 
-        y=df['QQQ'], 
-        mode='lines', 
-        name='QQQ Price',
-        line=dict(color='#F3F4F6', width=1.5)
-    ), 
+        y=df['QQQ'],
+        mode='lines',
+        name='QQQ',
+        line=dict(color='#00ffff', width=2),
+        fill='tozeroy',
+        fillcolor='rgba(0, 255, 255, 0.1)'
+    ),
     row=1, col=1
 )
 
-# Lower Bollinger Band (red dashed)
+# Lower Bollinger Band
 fig.add_trace(
     go.Scatter(
-        x=df.index, 
-        y=df['Lower_Band'], 
-        mode='lines', 
-        name='Panic Line',
-        line=dict(color='#EF4444', width=1.5, dash='dash')
-    ), 
+        x=df.index,
+        y=df['Lower_Band'],
+        mode='lines',
+        name='Panic Zone',
+        line=dict(color='#ff0055', width=2, dash='dot')
+    ),
     row=1, col=1
 )
 
-# Buy signals (yellow triangles)
-sq_signals = df[
-    (df['QQQ'] < df['Lower_Band']) & 
-    (df['RSI'] < SQ_RSI_ENTRY)
-]
+# Buy signals
+sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
 if len(sq_signals) > 0:
     fig.add_trace(
         go.Scatter(
-            x=sq_signals.index, 
+            x=sq_signals.index,
             y=sq_signals['QQQ'],
-            mode='markers', 
-            name='Buy Signal',
-            marker=dict(color='#F59E0B', size=10, symbol='triangle-up')
-        ), 
+            mode='markers',
+            name='BUY',
+            marker=dict(
+                color='#00ff00',
+                size=12,
+                symbol='triangle-up',
+                line=dict(color='#ffffff', width=2)
+            )
+        ),
         row=1, col=1
     )
 
-# --- Bottom Panel: RSI ---
-
-# RSI line (cyan)
+# === RSI with gradient fill ===
 fig.add_trace(
     go.Scatter(
-        x=df.index, 
-        y=df['RSI'], 
-        mode='lines', 
+        x=df.index,
+        y=df['RSI'],
+        mode='lines',
         name='RSI',
-        line=dict(color='#22D3EE', width=1.5)
-    ), 
+        line=dict(color='#ff00ff', width=2),
+        fill='tozeroy',
+        fillcolor='rgba(255, 0, 255, 0.15)'
+    ),
     row=2, col=1
 )
 
-# RSI threshold lines
-fig.add_hline(y=30, line_width=1, line_color="#EF4444", row=2, col=1)  # Oversold
-fig.add_hline(y=70, line_width=1, line_color="#4B5563", row=2, col=1)  # Overbought
+# RSI thresholds
+fig.add_hline(y=30, line_width=2, line_dash="dash", line_color="#00ff00", row=2, col=1)
+fig.add_hline(y=70, line_width=2, line_dash="dash", line_color="#ff0055", row=2, col=1)
 
-# --- Chart Styling (Dark Financial Theme) ---
+# === Cyberpunk Chart Styling ===
 fig.update_layout(
-    height=500,
-    paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
-    plot_bgcolor='rgba(0,0,0,0)',
-    margin=dict(l=10, r=10, t=20, b=10),
-    xaxis=dict(fixedrange=True, showgrid=False, color='#9CA3AF'),
-    yaxis=dict(fixedrange=True, showgrid=True, gridcolor='#374151', color='#9CA3AF'),
-    yaxis2=dict(
-        fixedrange=True, 
-        showgrid=True, 
-        gridcolor='#374151', 
-        color='#9CA3AF', 
-        range=[0, 100]
-    ),
+    height=550,
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(10, 14, 39, 0.8)',
+    margin=dict(l=10, r=10, t=30, b=10),
+    font=dict(family='Share Tech Mono', color='#00ffff', size=10),
     showlegend=False,
-    hovermode="x unified"
-)
-
-# Render chart
-st.plotly_chart(
-    fig, 
-    use_container_width=True,
-    config={
-        'displayModeBar': False,
-        'staticPlot': False,
-        'scrollZoom': False
-    }
-)
-
-
-# ==========================================
-# 📊 RAW DATA VIEWER (Collapsible)
-# ==========================================
-
-with st.expander("🔍 View Raw Tactical Data"):
-    # Select relevant columns
-    cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
-    display_df = df[cols].tail(10)
-    
-    # Apply styling
-    def highlight_rsi(val):
-        """Highlight RSI values below 30 with dark red background"""
-        return 'background-color: #450a0a' if val < 30 else ''
-    
-    styled_df = display_df.style.format("{:.2f}").applymap(
-        highlight_rsi, 
-        subset=['RSI']
+    hovermode='x unified',
+    hoverlabel=dict(
+        bgcolor='rgba(0, 0, 0, 0.9)',
+        font_size=12,
+        font_family='Share Tech Mono',
+        bordercolor='#00ffff'
     )
+)
+
+# X-axis styling
+fig.update_xaxes(
+    showgrid=True,
+    gridwidth=1,
+    gridcolor='rgba(0, 255, 255, 0.1)',
+    showline=True,
+    linewidth=2,
+    linecolor='#00ffff',
+    color='#00ffff'
+)
+
+# Y-axis styling
+fig.update_yaxes(
+    showgrid=True,
+    gridwidth=1,
+    gridcolor='rgba(0, 255, 255, 0.1)',
+    showline=True,
+    linewidth=2,
+    linecolor='#00ffff',
+    color='#00ffff'
+)
+
+# Annotation styling
+fig.update_annotations(
+    font=dict(family='Orbitron', size=12, color='#00ffff')
+)
+
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+# ==========================================
+# 📊 DATA TERMINAL
+# ==========================================
+
+with st.expander("🔍 ACCESS RAW DATA TERMINAL"):
+    st.markdown("""
+    <div style='background: rgba(0,0,0,0.8); border: 1px solid #00ff00; padding: 1rem; margin-bottom: 1rem;'>
+        <p style='font-family: Share Tech Mono; color: #00ff00; margin: 0; font-size: 0.8rem;'>
+            > TACTICAL DATA STREAM | LAST 10 RECORDS | ENCRYPTED FEED
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
+    display_df = df[cols].tail(10).copy()
+    
+    # Format and style
+    def highlight_critical(val):
+        if val < 30:
+            return 'background-color: rgba(255, 0, 85, 0.3); color: #ff0055; font-weight: bold;'
+        return ''
+    
+    styled_df = display_df.style.format({
+        'SPY': '${:.2f}',
+        'QQQ': '${:.2f}',
+        'RSI': '{:.1f}',
+        'Lower_Band': '${:.2f}',
+        'Drawdown': '{:.2%}'
+    }).applymap(highlight_critical, subset=['RSI'])
     
     st.dataframe(styled_df, use_container_width=True)
 
-
 # ==========================================
-# 📝 FOOTER
+# 📡 SYSTEM FOOTER
 # ==========================================
 
-st.markdown("---")
-st.caption(
-    "🐼 PANDA COMMANDER | "
-    "Data: Yahoo Finance | "
-    "Refresh: Every 30 min"
-)
+st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("""
+<div style='text-align: center; padding: 2rem; background: rgba(0,0,0,0.6); 
+            border-top: 2px solid #00ffff; margin-top: 2rem;'>
+    <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.7rem; 
+              margin: 0; letter-spacing: 2px;'>
+        🐼 PANDA TACTICAL COMMAND CENTER | v2.0 CYBERPUNK EDITION<br>
+        DATA SOURCE: YAHOO FINANCE | REFRESH CYCLE: 30 MIN<br>
+        <span style='color: #00ff00;'>● SYSTEM OPERATIONAL</span> | 
+        <span style='color: #ff00ff;'>● NETWORK SECURED</span>
+    </p>
+</div>
+""", unsafe_allow_html=True)
