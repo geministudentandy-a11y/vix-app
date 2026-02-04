@@ -1,8 +1,10 @@
 """
-🐼 PANDA TACTICAL COMMAND CENTER - Final Layout Fixed
-=====================================================
-Layout: Vertical Stack (Matrix -> Log)
-Fixes: HTML Rendering for Table & Log
+🐼 PANDA TACTICS - Ultimate Edition
+===================================
+Updates:
+1. Renamed to PANDA TACTICS
+2. Brightened Card Visuals
+3. Detailed Signal Reasons in Log
 """
 
 import streamlit as st
@@ -18,7 +20,7 @@ import os
 # 🎨 页面配置
 # ==========================================
 st.set_page_config(
-    page_title="PANDA COMMAND",
+    page_title="PANDA TACTICS",
     page_icon="🐼",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -45,7 +47,7 @@ BEAR_IMAGE = load_image_as_base64('Bear.png')
 MELTDOWN_IMAGE = load_image_as_base64('meltdown.png')
 
 # ==========================================
-# 💎 CSS 样式系统
+# 💎 CSS 样式系统 (高亮优化版)
 # ==========================================
 st.markdown("""
 <style>
@@ -58,18 +60,37 @@ st.markdown("""
     [data-testid="stMetricLabel"] { font-family: 'Share Tech Mono'; color: #00ffff; }
 
     .tactical-card-base {
-        position: relative; background: rgba(0, 0, 0, 0.85); border: 2px solid;
+        position: relative; background: rgba(0, 0, 0, 0.9); border: 2px solid;
         padding: 1.2rem; height: 360px; display: flex; flex-direction: column;
-        justify-content: space-between; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        justify-content: space-between; overflow: hidden; box-shadow: 0 0 25px rgba(0,0,0,0.7);
     }
+    
+    /* === 视觉优化：提高图片亮度和可见度 === */
     .tactical-card-base::before {
         content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background-size: cover; background-position: center; opacity: 0.3; filter: brightness(0.6) contrast(1.2); z-index: 0;
+        background-size: cover; background-position: center;
+        opacity: 0.55; /* 提高不透明度 (原0.3) */
+        filter: brightness(0.9) contrast(1.1); /* 提高亮度 (原0.6) */
+        z-index: 0;
     }
+    
     .card-content { position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .card-title { font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px; font-size: 1.3rem; margin-bottom: 5px; text-shadow: 0 0 5px currentColor; }
-    .card-data { font-family: 'Share Tech Mono'; font-size: 1.0rem; color: #fff; margin: auto 0; font-weight: bold; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); }
-    .card-status { font-family: 'Orbitron'; font-size: 1.4rem; font-weight: 900; padding: 10px; border-top: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.7); letter-spacing: 1px; }
+    .card-title { font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px; font-size: 1.3rem; margin-bottom: 5px; text-shadow: 0 0 8px currentColor; }
+    
+    /* === 视觉优化：加深文字背景，保证阅读 === */
+    .card-data { 
+        font-family: 'Share Tech Mono'; font-size: 1.0rem; color: #fff; margin: auto 0; font-weight: bold; 
+        background: rgba(0,0,0,0.85); /* 加深背景颜色 */
+        padding: 15px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); 
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    
+    .card-status { 
+        font-family: 'Orbitron'; font-size: 1.4rem; font-weight: 900; padding: 10px; 
+        border-top: 1px solid rgba(255,255,255,0.2); 
+        background: rgba(0,0,0,0.9); /* 加深底部状态栏背景 */
+        letter-spacing: 1px; 
+    }
     
     .scanline::after {
         content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -78,7 +99,6 @@ st.markdown("""
     }
     @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
 
-    /* 表格样式优化 */
     .perf-table { width: 100%; border-collapse: collapse; color: #fff; font-family: 'Share Tech Mono'; margin-bottom: 20px; }
     .perf-table th { border-bottom: 1px solid #00ffff; color: #00ffff; padding: 12px; text-align: right; background: rgba(0,255,255,0.05); }
     .perf-table td { padding: 12px; border-bottom: 1px solid #333; text-align: right; }
@@ -86,7 +106,8 @@ st.markdown("""
     .highlight-neg { color: #ff0055; }
     
     .log-container { background: rgba(0,0,0,0.4); border: 1px solid #333; padding: 15px; border-radius: 5px; }
-    .log-item { border-left: 3px solid #555; padding: 8px 15px; margin-bottom: 8px; font-family: 'Share Tech Mono'; font-size: 0.95rem; background: rgba(255,255,255,0.02); }
+    .log-item { border-left: 3px solid #555; padding: 10px 15px; margin-bottom: 8px; font-family: 'Share Tech Mono'; font-size: 0.95rem; background: rgba(255,255,255,0.03); display: flex; justify-content: space-between; align-items: center; }
+    .log-reason { font-size: 0.8rem; color: #aaa; margin-left: 15px; font-style: italic; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,80 +126,65 @@ with st.sidebar:
     SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30)
 
 # ==========================================
-# 📥 数据与逻辑核心 (全历史回测版)
+# 📥 数据与逻辑核心 (含原因分析)
 # ==========================================
 @st.cache_data(ttl=3600)
 def get_data_and_backtest():
     tickers = ['SPY', 'QQQ', '^VIX']
-    # 下载数据
     data = yf.download(tickers, period="25y", progress=False, group_by='ticker', auto_adjust=True)
     
     df = pd.DataFrame()
-    # 兼容性处理
     try:
         df['SPY'] = data['SPY']['Close']
         df['QQQ'] = data['QQQ']['Close']
         df['VIX'] = data['^VIX']['Close']
     except:
-        # 如果数据结构不同，尝试回退方法
         if isinstance(data.columns, pd.MultiIndex):
             df['SPY'] = data.xs('SPY', axis=1, level=0)['Close']
             df['QQQ'] = data.xs('QQQ', axis=1, level=0)['Close']
             df['VIX'] = data.xs('^VIX', axis=1, level=0)['Close']
         else:
-            # 最后的尝试
             df['SPY'] = data['SPY']
             df['QQQ'] = data['QQQ']
             df['VIX'] = data['^VIX']
     
     df = df.dropna()
 
-    # === 指标计算 ===
     df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
     df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
     
-    # 回撤
     spy_max = df['SPY'].rolling(252).max()
     df['Drawdown'] = (df['SPY'] / spy_max) - 1
     
-    # 布林带
     sma = df['QQQ'].rolling(SQ_BB_N).mean()
     std = df['QQQ'].rolling(SQ_BB_N).std()
     df['Lower_Band'] = sma - (SQ_BB_STD * std)
     
-    # RSI
     delta = df['QQQ'].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
 
-    # === 回测逻辑 (Vectorized) ===
-    # 1. 信号判断
+    # === 信号判断 ===
     df['Signal_Bull'] = (df['SPY'] > df['SPY_MA']) & (df['QQQ'] > df['QQQ_MOM_Ref'])
     df['Signal_Squad'] = (df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)
     df['Signal_Meltdown'] = df['Drawdown'] < -CB_DROP
     
-    # 2. 策略持仓判定
-    conditions = [
-        df['Signal_Meltdown'],  # 优先级 1: 熔断
-        df['Signal_Squad'],     # 优先级 2: 敢死队
-        df['Signal_Bull']       # 优先级 3: 牛市
-    ]
+    # 策略持仓判定
+    conditions = [df['Signal_Meltdown'], df['Signal_Squad'], df['Signal_Bull']]
     choices = [1, 2, 2] # 仓位系数
     df['Position'] = np.select(conditions, choices, default=0)
     
-    # 3. 收益计算
+    # 收益计算
     df['QQQ_Ret'] = df['QQQ'].pct_change()
     df['SPY_Ret'] = df['SPY'].pct_change()
     df['Strat_Ret'] = df['Position'].shift(1) * df['QQQ_Ret']
     df['Strat_Ret'] = df['Strat_Ret'].fillna(0)
-    
-    # 累计净值
     df['Strategy_Eq'] = (1 + df['Strat_Ret']).cumprod()
     df['SPY_Eq'] = (1 + df['SPY_Ret']).cumprod()
 
-    # === 状态变更记录 ===
+    # === 状态与原因记录 (Reason Logic) ===
     status_conds = [
         df['Signal_Meltdown'],
         df['Signal_Squad'],
@@ -186,6 +192,21 @@ def get_data_and_backtest():
     ]
     status_names = ['☢️ 熔断 (1x)', '🏴‍☠️ 突击 (2x)', '🐂 满仓 (2x)']
     df['Status_Label'] = np.select(status_conds, status_names, default='🐻 空仓 (0x)')
+    
+    # === 新增：触发原因逻辑 ===
+    reason_conds = [
+        df['Signal_Meltdown'],
+        df['Signal_Squad'],
+        df['Signal_Bull']
+    ]
+    reason_names = [
+        f"触发熔断保护 (回撤 > {CB_DROP*100}%)",
+        f"敢死队信号触发 (RSI<{SQ_RSI_ENTRY} & 破下轨)",
+        "趋势向上 (SPY>MA & QQQ>MOM)"
+    ]
+    # 默认空仓原因
+    df['Reason'] = np.select(reason_conds, reason_names, default="趋势破坏 (跌破 MA 或 MOM)")
+
     df['Status_Change'] = df['Status_Label'] != df['Status_Label'].shift(1)
     
     return df
@@ -228,11 +249,11 @@ else:
     dist_to_flip = max(dist_spy_ma, dist_qqq_mom)
 
 # ==========================================
-# 🖥️ 头部 & 倒计时
+# 🖥️ 头部 & 倒计时 (更名)
 # ==========================================
 st.markdown(f"""
 <div style='text-align: center; border-bottom: 2px solid #00ffff; padding-bottom: 10px; margin-bottom: 20px;'>
-    <h1 style='margin:0; letter-spacing: 5px;'>🐼 PANDA TACTICAL COMMAND</h1>
+    <h1 style='margin:0; letter-spacing: 5px;'>🐼 PANDA TACTICS</h1>
     <p style='font-family: Share Tech Mono; color: #00ff00;'>DATA SYNC: {curr_date.strftime('%Y-%m-%d')} | SYSTEM: ONLINE</p>
 </div>
 """, unsafe_allow_html=True)
@@ -244,16 +265,14 @@ with m2: st.metric("QQQ TECH", f"${latest['QQQ']:.2f}", f"{(latest['QQQ']-prev['
 with m3: st.metric("VIX FEAR", f"{latest['VIX']:.2f}", f"{(latest['VIX']-prev['VIX'])/prev['VIX']*100:+.2f}%", delta_color="inverse")
 with m4:
     color = "#ff0055" if days_to_rebalance == 0 else "#00ffff"
-    # 使用无缩进HTML
     st.markdown(f"<div style='text-align: center;'><p style='margin:0; font-family: Share Tech Mono; color: #888;'>REBALANCE COUNTDOWN</p><p style='margin:0; font-family: Orbitron; font-size: 2rem; color: {color};'>T-{days_to_rebalance} DAYS</p></div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 🎴 战术卡片
+# 🎴 战术卡片 (更明亮)
 # ==========================================
 c1, c2, c3 = st.columns(3)
-# 核心修复函数：去除缩进
 def clean_html(html_str): 
     return "".join([line.strip() for line in html_str.split('\n') if line.strip()])
 
@@ -313,7 +332,7 @@ with c3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 📊 历史回测数据矩阵 (PERFORMANCE MATRIX)
+# 📊 历史回测数据矩阵
 # ==========================================
 st.markdown("""
 <div style='background: rgba(0,255,255,0.1); border-left: 4px solid #00ffff; padding: 5px 15px; margin-top: 20px;'>
@@ -321,7 +340,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 计算 CAGR
 def calc_cagr_diff(years):
     days = years * 252
     if len(df) < days: return "N/A", "N/A", "N/A"
@@ -354,14 +372,13 @@ for p in periods:
     table_html += row_html
 
 table_html += "</tbody></table>"
-# 使用 clean_html 修复白框问题
 st.markdown(clean_html(table_html), unsafe_allow_html=True)
 st.markdown("<p style='font-family: Share Tech Mono; font-size: 0.8rem; color: #666; margin-top: 0px;'>*注: 理论回测假设 牛市/突击=2x杠杆, 熔断=1x, 熊市=空仓. 未包含交易损耗.</p>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 📜 最近信号日志 (SIGNAL LOG) - 已移动到下方
+# 📜 最近信号日志 (含原因)
 # ==========================================
 st.markdown("""
 <div style='background: rgba(255,0,85,0.1); border-left: 4px solid #ff0055; padding: 5px 15px;'>
@@ -374,6 +391,7 @@ log_html = "<div class='log-container'>"
 
 for date, row in changes.iterrows():
     status = row['Status_Label']
+    reason = row['Reason'] # 获取触发原因
     color = "#fff"
     if "满仓" in status: color = "#00ff00"
     elif "空仓" in status: color = "#00bfff"
@@ -381,14 +399,18 @@ for date, row in changes.iterrows():
     elif "熔断" in status: color = "#ffa500"
     
     log_html += f"""
-    <div class='log-item' style='border-color: {color};'>
-        <span style='color: #888;'>[{date.strftime('%Y-%m-%d')}]</span> 
-        <span style='color: {color}; font-weight: bold; margin-left: 10px;'>{status}</span>
+    <div class='log-item' style='border-left-color: {color};'>
+        <div>
+            <span style='color: #888;'>[{date.strftime('%Y-%m-%d')}]</span> 
+            <span style='color: {color}; font-weight: bold; margin-left: 10px; font-size: 1.1rem;'>{status}</span>
+        </div>
+        <div class='log-reason'>
+            ➤ 触发信号: {reason}
+        </div>
     </div>
     """
 
 log_html += "</div>"
-# 使用 clean_html 修复白框问题
 st.markdown(clean_html(log_html), unsafe_allow_html=True)
 
 st.markdown("<br><br>", unsafe_allow_html=True)
