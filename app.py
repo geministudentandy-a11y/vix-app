@@ -1,10 +1,3 @@
-"""
-🐼 PANDA TACTICAL COMMAND CENTER - Enhanced Edition
-====================================================
-Cyberpunk dashboard with dynamic visual status indicators
-Updated: Added background image for Rebalance Protocol card.
-"""
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -20,215 +13,148 @@ import os
 # ==========================================
 
 st.set_page_config(
-    page_title="PANDA TACTICAL COMMAND",
+    page_title="PANDA COMMAND",
     page_icon="🐼",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# 🖼️ LOAD IMAGES AS BASE64 (SMART LOADER)
+# 🖼️ IMAGE LOADER
 # ==========================================
 
 def load_image_as_base64(filename):
-    """
-    尝试从多个位置加载图片，并转换为 base64。
-    如果找不到图片，返回一个透明像素，防止程序崩溃。
-    """
     possible_paths = [
-        filename,                          # 优先找根目录
-        os.path.join("images", filename),  # 其次找 images 文件夹
+        filename,
+        os.path.join("images", filename),
         os.path.join(os.getcwd(), filename),
     ]
-
     for filepath in possible_paths:
         if os.path.exists(filepath):
             try:
                 with open(filepath, 'rb') as f:
                     return base64.b64encode(f.read()).decode()
-            except Exception as e:
+            except:
                 continue
-    
-    # 没找到图片时的容错处理
-    print(f"⚠️ Warning: Image {filename} not found.")
-    return "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" # 1x1透明GIF
+    return "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
-# === 加载所有战术图片 ===
-# Suicide Squad Images
+# Load Images
 REST_IMAGE = load_image_as_base64('rest.png')
 ATTACK_IMAGE = load_image_as_base64('attack.png')
-
-# Panda Force Images
 BULL_IMAGE = load_image_as_base64('Bull.png') 
 BEAR_IMAGE = load_image_as_base64('Bear.png')
-
-# Rebalance Image (New!)
-REBALANCE_IMAGE = load_image_as_base64('rebalance.png')
+MELTDOWN_IMAGE = load_image_as_base64('meltdown.png') # Changed from rebalance
 
 # ==========================================
-# 💎 CYBERPUNK CSS INJECTION
+# 💎 CSS STYLING
 # ==========================================
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
     
-    /* ===== GLOBAL THEME ===== */
     .stApp {
         background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 50%, #16213e 100%);
         background-attachment: fixed;
     }
     
-    /* Animated grid overlay */
-    .stApp::before {
-        content: '';
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background-image: 
-            linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 50px 50px;
-        pointer-events: none;
-        z-index: 0;
-        animation: gridPulse 4s ease-in-out infinite;
-    }
+    /* Headers */
+    h1, h2, h3 { font-family: 'Orbitron', monospace !important; color: #00ffff !important; }
     
-    @keyframes gridPulse {
-        0%, 100% { opacity: 0.3; }
-        50% { opacity: 0.6; }
-    }
-    
-    /* ===== TYPOGRAPHY ===== */
-    h1, h2, h3, .stMarkdown p {
-        font-family: 'Orbitron', monospace !important;
-        color: #00ffff !important;
-        text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-    }
-    
-    h1 {
-        font-size: 3rem !important;
-        font-weight: 900 !important;
-        letter-spacing: 4px;
-        background: linear-gradient(90deg, #00ffff, #ff00ff, #00ffff);
-        background-size: 200% auto;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: gradientShift 3s linear infinite;
-    }
-    
-    @keyframes gradientShift { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
-    
-    /* ===== METRIC CARDS ===== */
+    /* Metric styling */
     [data-testid="stMetricValue"] {
         font-family: 'Orbitron', monospace !important;
-        font-size: 2.2rem !important;
         color: #00ff00 !important;
-        text-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
+        font-size: 1.8rem !important;
     }
     [data-testid="stMetricLabel"] {
         font-family: 'Share Tech Mono', monospace !important;
         color: #00ffff !important;
     }
-    
-    /* ===== TACTICAL CARD BASE ===== */
+
+    /* Card Styling */
     .tactical-card-base {
         position: relative;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.75);
         border: 2px solid;
-        padding: 1.5rem;
-        height: 320px;
+        padding: 1.2rem;
+        height: 350px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
         overflow: hidden;
-        box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }
     
     .tactical-card-base::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background-size: cover;
-        background-position: center;
-        opacity: 0.35;
-        filter: brightness(0.8);
-        z-index: 0;
+        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background-size: cover; background-position: center;
+        opacity: 0.35; filter: brightness(0.7) contrast(1.2); z-index: 0;
     }
     
-    .tactical-card-content {
-        position: relative;
-        z-index: 1;
-    }
+    .card-content { position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
     
+    .card-title { font-family: 'Orbitron'; font-weight: 900; letter-spacing: 2px; font-size: 1.2rem; margin-bottom: 10px; text-shadow: 0 0 5px currentColor; }
+    .card-data { font-family: 'Share Tech Mono'; font-size: 1.1rem; color: #fff; margin: auto 0; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; }
+    .card-status { font-family: 'Orbitron'; font-size: 1.4rem; font-weight: 900; padding: 10px; border-top: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); }
+
     .scanline::after {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 50%, transparent 100%);
-        animation: scan 4s linear infinite;
-        pointer-events: none;
-        z-index: 2;
+        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.05) 50%, transparent 100%);
+        animation: scan 6s linear infinite; pointer-events: none; z-index: 2;
     }
-    
     @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
-    .glitch { animation: glitch 1s infinite; }
-    @keyframes glitch { 0%, 90%, 100% { transform: translate(0); } 92% { transform: translate(-2px, 2px); } 94% { transform: translate(2px, -2px); } }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# ⚙️ TACTICAL CONTROL PANEL
+# ⚙️ CONTROL PANEL
 # ==========================================
 
 with st.sidebar:
-    st.markdown("# ⚙️ CONTROL PANEL")
-    st.markdown("---")
-    
-    st.markdown("### 🐼 PANDA PROTOCOLS")
+    st.markdown("### ⚙️ SYSTEM PARAMETERS")
     PANDA_MA = st.number_input("SPY MA FILTER", value=200)
     PANDA_MOM = st.number_input("QQQ MOMENTUM", value=95)
-    CB_DROP = st.number_input("CIRCUIT BREAKER", value=0.075, step=0.005, format="%.3f")
+    CB_DROP = st.number_input("MELTDOWN TRIGGER (%)", value=7.5, step=0.5) / 100.0
     
     st.markdown("---")
-    st.markdown("### 🏴‍☠️ SQUAD PARAMETERS")
+    st.markdown("### 🏴‍☠️ SQUAD SETTINGS")
     SQ_BB_N = st.number_input("BB PERIOD", value=20)
     SQ_BB_STD = st.number_input("BB DEVIATION", value=2.5)
     SQ_RSI_ENTRY = st.number_input("RSI TRIGGER", value=30)
-    
-    st.markdown("---")
-    st.markdown(f"""
-    <div style='text-align: center; padding: 1rem; background: rgba(0,255,255,0.1); 
-                border: 1px solid #00ffff;'>
-        <p style='font-family: Share Tech Mono; font-size: 0.7rem; color: #00ffff; margin: 0;'>
-            SYSTEM ONLINE<br>
-            <span style='color: #00ff00;'>● ACTIVE</span>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ==========================================
 # 📥 DATA CORE
 # ==========================================
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300)
 def get_market_data():
-    tickers = ['SPY', 'QQQ']
-    data = yf.download(tickers, period="1y", progress=False, auto_adjust=True)
+    # Added ^VIX to download
+    tickers = ['SPY', 'QQQ', '^VIX']
+    data = yf.download(tickers, period="2y", progress=False, group_by='ticker', auto_adjust=True)
     
-    if isinstance(data.columns, pd.MultiIndex):
-        df = data['Close'].copy()
-    else:
-        df = data.copy()
-    
+    # Process Data into single DF for ease of use
+    df = pd.DataFrame()
+    df['SPY'] = data['SPY']['Close']
+    df['QQQ'] = data['QQQ']['Close']
+    df['VIX'] = data['^VIX']['Close']
     df = df.dropna()
-    
+
+    # Calculations
     df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
     df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
     
-    spy_max = df['SPY'].rolling(5).max()
+    # Drawdown (Peak to Trough)
+    spy_max = df['SPY'].rolling(252).max() # 1 year rolling max
     df['Drawdown'] = (df['SPY'] / spy_max) - 1
     
+    # Bollinger Bands for QQQ
     sma = df['QQQ'].rolling(SQ_BB_N).mean()
     std = df['QQQ'].rolling(SQ_BB_N).std()
     df['Lower_Band'] = sma - (SQ_BB_STD * std)
+    df['Upper_Band'] = sma + (SQ_BB_STD * std) # Added Upper for "Retreat" logic check
     
+    # RSI
     delta = df['QQQ'].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -239,394 +165,247 @@ def get_market_data():
 
 try:
     df = get_market_data()
-    if df.empty:
-        st.error("⚠️ Data download returned empty. Market may be closed or ticker symbol error.")
-        st.stop()
+    if df.empty: st.stop()
     latest = df.iloc[-1]
+    prev = df.iloc[-2]
     curr_date = df.index[-1]
 except Exception as e:
-    st.error(f"⚠️ SYSTEM FAILURE: {e}")
+    st.error(f"DATA ERROR: {e}")
     st.stop()
 
 # ==========================================
-# 🧠 STRATEGY LOGIC
+# 🧠 LOGIC ENGINE
 # ==========================================
 
+# 1. Date Logic (Rebalance)
 month_end = curr_date + MonthEnd(0)
-days_to_end = (month_end - curr_date).days
-is_month_end = days_to_end == 0
+days_to_rebalance = (month_end - curr_date).days
 
-panda_bull = latest['SPY'] > latest['SPY_MA'] and latest['QQQ'] > latest['QQQ_MOM_Ref']
-panda_cb = latest['Drawdown'] < -CB_DROP
+# 2. Meltdown Logic (Card 1)
+# Drawdown is negative (e.g., -0.02). CB_DROP is positive (0.075).
+# Meltdown happens when Drawdown <= -CB_DROP
+current_dd_pct = abs(latest['Drawdown'])
+cb_target_pct = CB_DROP
+dist_to_meltdown = max(0, cb_target_pct - current_dd_pct) * 100
+is_meltdown = current_dd_pct >= cb_target_pct
 
-dist_val = latest['QQQ'] - latest['Lower_Band']
-dist_pct = (dist_val / latest['QQQ']) * 100
-sq_fire = latest['QQQ'] < latest['Lower_Band'] and latest['RSI'] < SQ_RSI_ENTRY
-sq_alert = dist_pct < 2.0
+# 3. Squad Logic (Card 2)
+# Distance to Lower Band (Attack Trigger)
+price_qqq = latest['QQQ']
+lower_band = latest['Lower_Band']
+dist_to_attack_pct = ((price_qqq - lower_band) / price_qqq) * 100
+is_attack = price_qqq < lower_band and latest['RSI'] < SQ_RSI_ENTRY
+
+# 4. Panda Force Logic (Card 3)
+# Bull Condition: SPY > MA AND QQQ > Momentum
+is_bull = latest['SPY'] > latest['SPY_MA'] and latest['QQQ'] > latest['QQQ_MOM_Ref']
+
+# Calculate distance to flip state
+if is_bull:
+    # How much drop to become Bear?
+    # 1. SPY drop to MA
+    dist_spy_ma = ((latest['SPY'] - latest['SPY_MA']) / latest['SPY']) * 100
+    # 2. QQQ drop to Mom Ref
+    dist_qqq_mom = ((latest['QQQ'] - latest['QQQ_MOM_Ref']) / latest['QQQ']) * 100
+    # The closest threat
+    dist_to_flip = min(dist_spy_ma, dist_qqq_mom)
+else:
+    # Bear mode. How much rise to become Bull?
+    # We need BOTH to be true, so we need the larger distance
+    dist_spy_ma = ((latest['SPY_MA'] - latest['SPY']) / latest['SPY']) * 100
+    dist_qqq_mom = ((latest['QQQ_MOM_Ref'] - latest['QQQ']) / latest['QQQ']) * 100
+    dist_to_flip = max(dist_spy_ma, dist_qqq_mom)
 
 # ==========================================
-# 🎮 COMMAND CENTER INTERFACE
+# 🖥️ DASHBOARD HEADER
 # ==========================================
 
 st.markdown(f"""
-<div style='text-align: center; padding: 2rem 0 1rem 0;'>
-    <h1 class='glitch'>🐼 PANDA TACTICAL COMMAND</h1>
-    <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.9rem; letter-spacing: 3px;'>
-        LAST SYNC: {curr_date.strftime('%Y.%m.%d')} | 
-        NETWORK: <span style='color: #00ff00;'>SECURED</span> | 
-        STATUS: <span style='color: #ff00ff;'>OPERATIONAL</span>
-    </p>
+<div style='text-align: center; border-bottom: 2px solid #00ffff; padding-bottom: 10px; margin-bottom: 20px;'>
+    <h1 style='margin:0; letter-spacing: 5px;'>🐼 PANDA TACTICAL COMMAND</h1>
+    <p style='font-family: Share Tech Mono; color: #00ff00;'>DATA SYNC: {curr_date.strftime('%Y-%m-%d')} | SYSTEM: ONLINE</p>
 </div>
 """, unsafe_allow_html=True)
 
-# === QUICK STATUS BAR ===
-col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+# === TOP METRICS BAR (SPY, QQQ, VIX, DAYS) ===
+m1, m2, m3, m4 = st.columns(4)
 
-with col_q1:
-    spy_delta = df['SPY'].diff().iloc[-1]
-    st.metric("SPY INDEX", f"${latest['SPY']:.2f}", f"{spy_delta:+.2f}")
+with m1:
+    delta = (latest['SPY'] - prev['SPY']) / prev['SPY'] * 100
+    st.metric("SPY 500", f"${latest['SPY']:.2f}", f"{delta:+.2f}%")
 
-with col_q2:
-    qqq_delta = df['QQQ'].diff().iloc[-1]
-    st.metric("QQQ INDEX", f"${latest['QQQ']:.2f}", f"{qqq_delta:+.2f}")
+with m2:
+    delta = (latest['QQQ'] - prev['QQQ']) / prev['QQQ'] * 100
+    st.metric("QQQ TECH", f"${latest['QQQ']:.2f}", f"{delta:+.2f}%")
 
-with col_q3:
-    st.metric("RSI LEVEL", f"{latest['RSI']:.1f}", 
-              "OVERSOLD" if latest['RSI'] < 30 else "NORMAL",
-              delta_color="inverse" if latest['RSI'] < 30 else "normal")
+with m3:
+    delta = (latest['VIX'] - prev['VIX']) / prev['VIX'] * 100
+    st.metric("VIX FEAR", f"{latest['VIX']:.2f}", f"{delta:+.2f}%", delta_color="inverse")
 
-with col_q4:
-    vol_change = ((df['QQQ'].iloc[-1] / df['QQQ'].iloc[-2] - 1) * 100)
-    st.metric("VOLATILITY", f"{abs(vol_change):.2f}%", f"{vol_change:+.2f}%")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-st.markdown("""
-<div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
-            padding: 0.5rem; margin-bottom: 2rem; box-shadow: 0 0 20px rgba(0,255,255,0.2);'>
-    <p style='font-family: Orbitron; color: #00ffff; text-align: center; 
-              margin: 0; font-size: 1.1rem; letter-spacing: 3px;'>
-        ▸ TACTICAL STATUS GRID ◂
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns(3)
-
-# === CARD 1: REBALANCE PROTOCOL (Updated with rebalance.png) ===
-with col1:
-    # Set border color: Red if it's month end (Urgent), Cyan otherwise
-    reb_border = "#ff0055" if is_month_end else "#00ffff"
-    reb_glow = "255, 0, 85" if is_month_end else "0, 255, 255"
-
+with m4:
+    color = "#ff0055" if days_to_rebalance == 0 else "#00ffff"
     st.markdown(f"""
-    <div class='tactical-card-base scanline rebalance-card' style='border-color: {reb_border}; 
-                box-shadow: 0 0 30px rgba({reb_glow}, 0.3);'>
-        <style>
-            .rebalance-card::before {{ background-image: url('data:image/png;base64,{REBALANCE_IMAGE}'); }}
-        </style>
-        <div class='tactical-card-content'>
-            <p style='font-family: Orbitron; color: {reb_border}; font-size: 1.2rem; 
-                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-                🗓️ REBALANCE
-            </p>
-    """, unsafe_allow_html=True)
-    
-    if is_month_end:
-        st.markdown("""
-        <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #ff0055;'>
-            <p style='font-family: Orbitron; color: #ffffff; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900; text-shadow: 0 0 10px black;'>
-                ⚠️ EXECUTE
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 0.8rem; margin: 0.5rem 0 0 0;'>
-                IMMEDIATE ACTION
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        progress = max(0, min(100, int((1 - days_to_end/30) * 100)))
-        st.markdown(f"""
-        <div style='margin-top: 2rem; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;'>
-            <p style='font-family: Share Tech Mono; color: #00ff00; 
-                      font-size: 1.8rem; text-align: center; margin: 0;'>
-                T-{days_to_end} DAYS
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.progress(progress, text=f"CYCLE: {progress}%")
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-# === CARD 2: SUICIDE SQUAD (With Images) ===
-with col2:
-    if sq_fire:
-        sq_bg = ATTACK_IMAGE
-        sq_border = "#ff0055" # Red
-        sq_glow = "255, 0, 85"
-    elif sq_alert:
-        sq_bg = ATTACK_IMAGE
-        sq_border = "#ffa500" # Orange
-        sq_glow = "255, 165, 0"
-    else:
-        sq_bg = REST_IMAGE
-        sq_border = "#00ff00" # Green
-        sq_glow = "0, 255, 0"
-    
-    st.markdown(f"""
-    <div class='tactical-card-base scanline sq-card' style='border-color: {sq_border}; 
-                box-shadow: 0 0 30px rgba({sq_glow}, 0.3);'>
-        <style>
-            .sq-card::before {{ background-image: url('data:image/png;base64,{sq_bg}'); }}
-        </style>
-        <div class='tactical-card-content'>
-            <p style='font-family: Orbitron; color: {sq_border}; font-size: 1.2rem; 
-                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-                🏴‍☠️ SUICIDE SQUAD
-            </p>
-    """, unsafe_allow_html=True)
-    
-    if sq_fire:
-        st.markdown("""
-            <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
-                <p style='font-family: Orbitron; color: #ffffff; font-size: 2rem; 
-                          margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
-                    🔴 DEPLOY
-                </p>
-                <p style='font-family: Share Tech Mono; color: #ffffff; 
-                          font-size: 1.5rem; margin: 0.8rem 0; font-weight: 900;'>
-                    BUY QLD
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif sq_alert:
-        st.markdown(f"""
-            <div style='background: rgba(255,165,0,0.85); border: 2px solid #ffa500; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
-                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; margin: 0;'>
-                    🟡 ALERT
-                </p>
-                <p style='font-family: Share Tech Mono; color: #000000; 
-                          font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
-                    {dist_pct:.2f}%
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-            <div style='background: rgba(0,255,0,0.85); border: 2px solid #00ff00; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
-                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; margin: 0;'>
-                    🟢 STANDBY
-                </p>
-                <p style='font-family: Share Tech Mono; color: #000000; 
-                          font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
-                    +{dist_pct:.2f}%
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-# === CARD 3: PANDA FORCE (With Bull/Bear Images) ===
-with col3:
-    if panda_cb:
-        panda_bg = BEAR_IMAGE 
-        panda_border = "#ff0055" # Red
-        panda_glow = "255, 0, 85"
-    elif panda_bull:
-        panda_bg = BULL_IMAGE 
-        panda_border = "#00ff00" # Green
-        panda_glow = "0, 255, 0"
-    else:
-        panda_bg = BEAR_IMAGE 
-        panda_border = "#00bfff" # Blue
-        panda_glow = "0, 191, 255"
-
-    st.markdown(f"""
-    <div class='tactical-card-base scanline panda-card' style='border-color: {panda_border}; 
-                box-shadow: 0 0 30px rgba({panda_glow}, 0.3);'>
-        <style>
-            .panda-card::before {{ background-image: url('data:image/png;base64,{panda_bg}'); }}
-        </style>
-        <div class='tactical-card-content'>
-            <p style='font-family: Orbitron; color: {panda_border}; font-size: 1.2rem; 
-                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-                🐼 PANDA FORCE
-            </p>
-    """, unsafe_allow_html=True)
-    
-    if panda_cb:
-        st.markdown(f"""
-        <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
-                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #ff0055;'>
-            <p style='font-family: Orbitron; color: #ffffff; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900; text-shadow: 0 0 10px black;'>
-                🚨 EMERGENCY
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 1.2rem; margin: 0.5rem 0; font-weight: 900;'>
-                SWITCH TO QQQ
-            </p>
-            <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 0.9rem; margin: 0;'>
-                DROP: {latest['Drawdown']*100:.2f}%
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    elif panda_bull:
-        st.markdown("""
-        <div style='background: rgba(0,255,0,0.75); border: 2px solid #00ff00; 
-                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #00ff00;'>
-            <p style='font-family: Orbitron; color: #000000; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900;'>
-                🐂 BULL MODE
-            </p>
-            <p style='font-family: Share Tech Mono; color: #000000; 
-                      font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
-                QLD (2X)
-            </p>
-            <p style='font-family: Share Tech Mono; color: #000000; 
-                      font-size: 0.7rem; margin: 0;'>
-                AGGRESSIVE STANCE
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style='background: rgba(0,191,255,0.75); border: 2px solid #00bfff; 
-                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #00bfff;'>
-            <p style='font-family: Orbitron; color: #000000; font-size: 1.5rem; 
-                      margin: 0; font-weight: 700;'>
-                🐻 BEAR MODE
-            </p>
-            <p style='font-family: Share Tech Mono; color: #000000; 
-                      font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
-                CASH (0X)
-            </p>
-            <p style='font-family: Share Tech Mono; color: #000000; 
-                      font-size: 0.7rem; margin: 0;'>
-                DEFENSIVE POSITION
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ==========================================
-# 📈 TACTICAL CHART
-# ==========================================
-
-st.markdown("""
-<div style='background: rgba(0,255,255,0.05); border: 2px solid #00ffff; 
-            padding: 0.5rem; margin-bottom: 1rem;'>
-    <p style='font-family: Orbitron; color: #00ffff; text-align: center; 
-              margin: 0; font-size: 1.1rem; letter-spacing: 3px;'>
-        ▸ HOLOGRAPHIC TACTICAL DISPLAY ◂
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-fig = make_subplots(
-    rows=2, cols=1, 
-    shared_xaxes=True,
-    vertical_spacing=0.08,
-    row_heights=[0.7, 0.3]
-)
-
-fig.add_trace(
-    go.Scatter(
-        x=df.index, y=df['QQQ'], mode='lines', name='QQQ',
-        line=dict(color='#00ffff', width=2),
-        fill='tozeroy', fillcolor='rgba(0, 255, 255, 0.1)'
-    ), row=1, col=1
-)
-
-fig.add_trace(
-    go.Scatter(
-        x=df.index, y=df['Lower_Band'], mode='lines', name='Panic Zone',
-        line=dict(color='#ff0055', width=2, dash='dot')
-    ), row=1, col=1
-)
-
-sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
-if len(sq_signals) > 0:
-    fig.add_trace(
-        go.Scatter(
-            x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='BUY',
-            marker=dict(color='#00ff00', size=12, symbol='triangle-up',
-                       line=dict(color='#ffffff', width=2))
-        ), row=1, col=1
-    )
-
-fig.add_trace(
-    go.Scatter(
-        x=df.index, y=df['RSI'], mode='lines', name='RSI',
-        line=dict(color='#ff00ff', width=2),
-        fill='tozeroy', fillcolor='rgba(255, 0, 255, 0.15)'
-    ), row=2, col=1
-)
-
-fig.add_hline(y=30, line_width=2, line_dash="dash", line_color="#00ff00", row=2, col=1)
-fig.add_hline(y=70, line_width=2, line_dash="dash", line_color="#ff0055", row=2, col=1)
-
-fig.update_layout(
-    height=550,
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(10, 14, 39, 0.8)',
-    margin=dict(l=10, r=10, t=30, b=10),
-    font=dict(family='Share Tech Mono', color='#00ffff', size=10),
-    showlegend=False,
-    hovermode='x unified'
-)
-
-fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 255, 0.1)',
-                 showline=True, linewidth=2, linecolor='#00ffff')
-fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0, 255, 255, 0.1)',
-                 showline=True, linewidth=2, linecolor='#00ffff')
-
-st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-# ==========================================
-# 📊 DATA TERMINAL
-# ==========================================
-
-with st.expander("🔍 ACCESS RAW DATA TERMINAL"):
-    st.markdown("""
-    <div style='background: rgba(0,0,0,0.8); border: 1px solid #00ff00; padding: 1rem;'>
-        <p style='font-family: Share Tech Mono; color: #00ff00; margin: 0; font-size: 0.8rem;'>
-            > TACTICAL DATA STREAM | LAST 10 RECORDS
-        </p>
+    <div style='text-align: center;'>
+        <p style='margin:0; font-family: Share Tech Mono; color: #888;'>REBALANCE COUNTDOWN</p>
+        <p style='margin:0; font-family: Orbitron; font-size: 2rem; color: {color};'>T-{days_to_rebalance} DAYS</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
-    display_df = df[cols].tail(10).copy()
-    
-    def highlight_critical(val):
-        return 'background-color: rgba(255, 0, 85, 0.3); color: #ff0055;' if val < 30 else ''
-    
-    styled_df = display_df.style.format({
-        'SPY': '${:.2f}', 'QQQ': '${:.2f}', 'RSI': '{:.1f}',
-        'Lower_Band': '${:.2f}', 'Drawdown': '{:.2%}'
-    }).applymap(highlight_critical, subset=['RSI'])
-    
-    st.dataframe(styled_df, use_container_width=True)
 
-st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ==========================================
+# 🎴 TACTICAL CARDS
+# ==========================================
+
+c1, c2, c3 = st.columns(3)
+
+# === CARD 1: MELTDOWN MONITOR ===
+with c1:
+    border_c = "#ff0055" if is_meltdown else "#00ffff"
+    
+    st.markdown(f"""
+    <div class='tactical-card-base scanline card-1' style='border-color: {border_c};'>
+        <style> .card-1::before {{ background-image: url('data:image/png;base64,{MELTDOWN_IMAGE}'); }} </style>
+        <div class='card-content'>
+            <div class='card-title' style='color: {border_c};'>☢️ 熔断监测 (MELTDOWN)</div>
+            
+            <div class='card-data'>
+                <div>当前回撤: <span style='color: #ff0055;'>{current_dd_pct*100:.2f}%</span></div>
+                <div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>
+                    触发阈值: {cb_target_pct*100:.1f}%
+                </div>
+                <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>
+                    离熔断触发还差: <br>
+                    <span style='font-size: 1.8rem; color: #ff0055;'>{dist_to_meltdown:.2f}%</span> 跌幅
+                </div>
+            </div>
+
+            <div class='card-status' style='color: {border_c};'>
+                { "🚨 已熔断 (EMERGENCY)" if is_meltdown else "🟢 正常 (SECURE)" }
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# === CARD 2: SUICIDE SQUAD ===
+with c2:
+    # Logic Interpretation
+    if is_attack:
+        state_text = "🔴 突击 (ATTACK)"
+        state_color = "#ff0055"
+        bg_img = ATTACK_IMAGE
+        # In Attack mode, calculate distance to Mean (Retreat/Profit) or just show active
+        logic_html = f"""
+        <div style='color: #ff0055; font-weight: bold;'>已进入击球区!</div>
+        <div style='font-size: 0.9rem; color: #aaa;'>RSI: {latest['RSI']:.1f} (Target < {SQ_RSI_ENTRY})</div>
+        """
+    elif dist_to_attack_pct > 0:
+        state_text = "🟡 休整 (REST)"
+        state_color = "#ffa500"
+        bg_img = REST_IMAGE
+        logic_html = f"""
+        <div>需继续下跌 <span style='color: #ff0055; font-size: 1.4rem;'>{dist_to_attack_pct:.2f}%</span></div>
+        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>才能触发 [突击/买入] 信号</div>
+        <div style='font-size: 0.8rem; color: #aaa;'>目标价位: ${lower_band:.2f}</div>
+        """
+    else:
+        # Price is below band but RSI not cool enough, or other edge case
+        state_text = "⚪ 观望 (WAIT)"
+        state_color = "#ccc"
+        bg_img = REST_IMAGE
+        logic_html = f"<div>等待 RSI 冷却 ({latest['RSI']:.1f})</div>"
+
+    st.markdown(f"""
+    <div class='tactical-card-base scanline card-2' style='border-color: {state_color};'>
+        <style> .card-2::before {{ background-image: url('data:image/png;base64,{bg_img}'); }} </style>
+        <div class='card-content'>
+            <div class='card-title' style='color: {state_color};'>🏴‍☠️ 敢死队 (SQUAD)</div>
+            
+            <div class='card-data'>
+                {logic_html}
+            </div>
+
+            <div class='card-status' style='color: {state_color};'>
+                {state_text}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# === CARD 3: PANDA FORCE ===
+with c3:
+    if is_bull:
+        state_text = "🐂 满仓 (LNAS)"
+        state_color = "#00ff00"
+        bg_img = BULL_IMAGE
+        logic_html = f"""
+        <div>安全垫 (Safety Buffer):</div>
+        <div style='color: #ff0055; font-size: 1.4rem;'>{dist_to_flip:.2f}%</div>
+        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>
+            跌幅超过此数值将触发<br>[转熊/空仓] 信号
+        </div>
+        """
+    else:
+        state_text = "🐻 空仓 (CASH)"
+        state_color = "#00bfff"
+        bg_img = BEAR_IMAGE
+        logic_html = f"""
+        <div>需上涨 (Need Rally):</div>
+        <div style='color: #00ff00; font-size: 1.4rem;'>{dist_to_flip:.2f}%</div>
+        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>
+            涨幅超过此数值将触发<br>[转牛/满仓] 信号
+        </div>
+        """
+
+    st.markdown(f"""
+    <div class='tactical-card-base scanline card-3' style='border-color: {state_color};'>
+        <style> .card-3::before {{ background-image: url('data:image/png;base64,{bg_img}'); }} </style>
+        <div class='card-content'>
+            <div class='card-title' style='color: {state_color};'>🐼 熊猫主力 (MAIN)</div>
+            
+            <div class='card-data'>
+                {logic_html}
+            </div>
+
+            <div class='card-status' style='color: {state_color};'>
+                {state_text}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ==========================================
+# 📉 LOCKED CHART (DO NOT TOUCH)
+# ==========================================
+
 st.markdown("""
-<div style='text-align: center; padding: 2rem; background: rgba(0,0,0,0.6); 
-            border-top: 2px solid #00ffff;'>
-    <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.7rem; 
-              margin: 0; letter-spacing: 2px;'>
-        🐼 PANDA TACTICAL COMMAND CENTER | v2.3 FULL VISUAL EDITION<br>
-        <span style='color: #00ff00;'>● SYSTEM OPERATIONAL</span> | 
-        <span style='color: #ff00ff;'>● ASSETS SYNCED</span>
+<div style='background: rgba(0,255,255,0.05); border: 1px solid #00ffff; padding: 5px; margin-bottom: 5px;'>
+    <p style='font-family: Orbitron; color: #00ffff; text-align: center; margin: 0; font-size: 1rem;'>
+        ▸ TACTICAL CHART DISPLAY ◂
     </p>
 </div>
 """, unsafe_allow_html=True)
+
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.7, 0.3])
+
+# Main Price & Bands
+fig.add_trace(go.Scatter(x=df.index, y=df['QQQ'], mode='lines', name='QQQ', line=dict(color='#00ffff', width=2), fill='tozeroy', fillcolor='rgba(0, 255, 255, 0.1)'), row=1, col=1)
+fig.add_trace(go.Scatter(x=df.index, y=df['Lower_Band'], mode='lines', name='Buy Zone', line=dict(color='#ff0055', width=1, dash='dot')), row=1, col=1)
+
+# Signals
+sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
+if not sq_signals.empty:
+    fig.add_trace(go.Scatter(x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='BUY SIGNAL', marker=dict(color='#00ff00', size=10, symbol='triangle-up', line=dict(color='#fff', width=1))), row=1, col=1)
+
+# RSI
+fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI', line=dict(color='#ff00ff', width=2)), row=2, col=1)
+fig.add_hline(y=30, line_width=1, line_dash="dash", line_color="#00ff00", row=2, col=1)
+fig.add_hline(y=70, line_width=1, line_dash="dash", line_color="#ff0055", row=2, col=1)
+
+fig.update_layout(height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(10, 14, 39, 0.8)', margin=dict(l=10, r=10, t=20, b=10), font=dict(family='Share Tech Mono', color='#888', size=10), showlegend=False)
+fig.update_xaxes(showgrid=True, gridcolor='rgba(0,255,255,0.1)')
+fig.update_yaxes(showgrid=True, gridcolor='rgba(0,255,255,0.1)')
+
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
