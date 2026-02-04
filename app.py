@@ -2,7 +2,7 @@
 🐼 PANDA TACTICAL COMMAND CENTER - Enhanced Edition
 ====================================================
 Cyberpunk dashboard with dynamic visual status indicators
-Fixed Version: Auto-detects image paths and handles missing files gracefully.
+Updated: Added Bull/Bear images for Panda Force signal & Robust path handling.
 """
 
 import streamlit as st
@@ -13,7 +13,7 @@ from plotly.subplots import make_subplots
 from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
 import base64
-import os  # 新增：用于检测文件路径
+import os
 
 # ==========================================
 # 🎨 PAGE CONFIGURATION
@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🖼️ LOAD IMAGES AS BASE64 (ROBUST VERSION)
+# 🖼️ LOAD IMAGES AS BASE64 (SMART LOADER)
 # ==========================================
 
 def load_image_as_base64(filename):
@@ -35,32 +35,32 @@ def load_image_as_base64(filename):
     尝试从多个位置加载图片，并转换为 base64。
     如果找不到图片，返回一个透明像素，防止程序崩溃。
     """
-    # 定义程序会去寻找图片的路径列表
     possible_paths = [
-        os.path.join("images", filename),  # 优先找 images 文件夹
-        filename,                          # 其次找根目录
-        os.path.join(os.getcwd(), "images", filename), # 绝对路径尝试
+        filename,                          # 优先找根目录 (根据你的截图，图片在这里)
+        os.path.join("images", filename),  # 其次找 images 文件夹
+        os.path.join(os.getcwd(), filename),
     ]
 
     for filepath in possible_paths:
         if os.path.exists(filepath):
             try:
                 with open(filepath, 'rb') as f:
-                    # 找到文件，成功返回
                     return base64.b64encode(f.read()).decode()
             except Exception as e:
-                # 文件存在但读取失败
-                print(f"Error reading {filepath}: {e}")
                 continue
     
-    # 如果所有路径都找不到文件，打印警告并返回透明像素（防止报错）
-    print(f"⚠️ Warning: Image {filename} not found in expected paths.")
-    st.toast(f"⚠️ Warning: Could not find image: {filename}", icon="⚠️")
+    # 没找到图片时的容错处理
+    print(f"⚠️ Warning: Image {filename} not found.")
     return "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" # 1x1透明GIF
 
-# 加载战术图片 (只需要写文件名即可，程序会自动找路径)
+# 加载图片 (严格匹配截图中的文件名大小写)
+# Suicide Squad Images
 REST_IMAGE = load_image_as_base64('rest.png')
 ATTACK_IMAGE = load_image_as_base64('attack.png')
+
+# Panda Force Images
+BULL_IMAGE = load_image_as_base64('Bull.png') 
+BEAR_IMAGE = load_image_as_base64('Bear.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
@@ -70,13 +70,7 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
     
-    /* ===== HIDE STREAMLIT DEFAULTS ===== */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display: none;}
-    
-    /* ===== GLOBAL DARK CYBERPUNK THEME ===== */
+    /* ===== GLOBAL THEME ===== */
     .stApp {
         background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 50%, #16213e 100%);
         background-attachment: fixed;
@@ -86,10 +80,7 @@ st.markdown("""
     .stApp::before {
         content: '';
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        top: 0; left: 0; width: 100%; height: 100%;
         background-image: 
             linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
             linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
@@ -105,13 +96,6 @@ st.markdown("""
     }
     
     /* ===== TYPOGRAPHY ===== */
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-        position: relative;
-        z-index: 1;
-    }
-    
     h1, h2, h3, .stMarkdown p {
         font-family: 'Orbitron', monospace !important;
         color: #00ffff !important;
@@ -129,65 +113,22 @@ st.markdown("""
         animation: gradientShift 3s linear infinite;
     }
     
-    @keyframes gradientShift {
-        0% { background-position: 0% center; }
-        100% { background-position: 200% center; }
-    }
+    @keyframes gradientShift { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
     
     /* ===== METRIC CARDS ===== */
     [data-testid="stMetricValue"] {
         font-family: 'Orbitron', monospace !important;
         font-size: 2.2rem !important;
-        font-weight: 900 !important;
         color: #00ff00 !important;
         text-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
     }
-    
     [data-testid="stMetricLabel"] {
         font-family: 'Share Tech Mono', monospace !important;
-        font-size: 0.75rem !important;
         color: #00ffff !important;
-        text-transform: uppercase;
-        letter-spacing: 2px;
     }
     
-    /* ===== ALERT BOXES ===== */
-    .stAlert {
-        border: 2px solid;
-        border-radius: 0;
-        font-family: 'Share Tech Mono', monospace !important;
-        backdrop-filter: blur(10px);
-        animation: borderPulse 2s ease-in-out infinite;
-    }
-    
-    @keyframes borderPulse {
-        0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 0, 0.3); }
-        50% { box-shadow: 0 0 25px rgba(255, 0, 0, 0.6); }
-    }
-    
-    /* ===== PROGRESS BAR ===== */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #00ffff, #ff00ff);
-        box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
-    }
-    
-    /* ===== SIDEBAR ===== */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0a0e27 0%, #1a1a2e 100%);
-        border-right: 2px solid #00ffff;
-        box-shadow: 5px 0 30px rgba(0, 255, 255, 0.2);
-    }
-    
-    /* ===== INPUT FIELDS ===== */
-    .stNumberInput input {
-        background: rgba(0, 0, 0, 0.6) !important;
-        border: 1px solid #00ffff !important;
-        color: #00ff00 !important;
-        font-family: 'Share Tech Mono', monospace !important;
-    }
-    
-    /* ===== TACTICAL CARD WITH BACKGROUND IMAGE ===== */
-    .tactical-card {
+    /* ===== TACTICAL CARD BASE ===== */
+    .tactical-card-base {
         position: relative;
         background: rgba(0, 0, 0, 0.7);
         border: 2px solid;
@@ -197,13 +138,10 @@ st.markdown("""
         box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
     }
     
-    .tactical-card::before {
+    .tactical-card-base::before {
         content: '';
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        top: 0; left: 0; width: 100%; height: 100%;
         background-size: cover;
         background-position: center;
         opacity: 0.35;
@@ -216,43 +154,19 @@ st.markdown("""
         z-index: 1;
     }
     
-    .scanline {
-        position: relative;
-        overflow: hidden;
-    }
-    
     .scanline::after {
         content: '';
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(
-            to bottom,
-            transparent 0%,
-            rgba(0, 255, 255, 0.1) 50%,
-            transparent 100%
-        );
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 50%, transparent 100%);
         animation: scan 4s linear infinite;
         pointer-events: none;
+        z-index: 2;
     }
     
-    @keyframes scan {
-        0% { transform: translateY(-100%); }
-        100% { transform: translateY(100%); }
-    }
-    
-    /* ===== GLITCH EFFECT ===== */
-    .glitch {
-        animation: glitch 1s infinite;
-    }
-    
-    @keyframes glitch {
-        0%, 90%, 100% { transform: translate(0); }
-        92% { transform: translate(-2px, 2px); }
-        94% { transform: translate(2px, -2px); }
-    }
+    @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+    .glitch { animation: glitch 1s infinite; }
+    @keyframes glitch { 0%, 90%, 100% { transform: translate(0); } 92% { transform: translate(-2px, 2px); } 94% { transform: translate(2px, -2px); } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -322,11 +236,9 @@ def get_market_data():
 
 try:
     df = get_market_data()
-    # Ensure we have data before proceeding
     if df.empty:
         st.error("⚠️ Data download returned empty. Market may be closed or ticker symbol error.")
         st.stop()
-        
     latest = df.iloc[-1]
     curr_date = df.index[-1]
 except Exception as e:
@@ -398,74 +310,70 @@ st.markdown("""
 
 col1, col2, col3 = st.columns(3)
 
-# === CARD 1: REBALANCE ===
+# === CARD 1: REBALANCE PROTOCOL ===
 with col1:
     st.markdown("""
-    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ffff; 
-                padding: 1.5rem; height: 320px; box-shadow: 0 0 30px rgba(0,255,255,0.2);'>
-        <p style='font-family: Orbitron; color: #00ffff; font-size: 1.2rem; 
-                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-            🗓️ REBALANCE PROTOCOL
-        </p>
+    <div class='tactical-card-base scanline' style='border-color: #00ffff; height: 320px;'>
+        <div class='tactical-card-content'>
+            <p style='font-family: Orbitron; color: #00ffff; font-size: 1.2rem; 
+                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
+                🗓️ REBALANCE
+            </p>
     """, unsafe_allow_html=True)
     
     if is_month_end:
         st.markdown("""
         <div style='background: rgba(255,0,0,0.2); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center;'>
+                    padding: 1rem; text-align: center; margin-top: 2rem;'>
             <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
                       margin: 0; font-weight: 900;'>
-                ⚠️ EXECUTE NOW
+                ⚠️ EXECUTE
             </p>
             <p style='font-family: Share Tech Mono; color: #ff0055; 
                       font-size: 0.8rem; margin: 0.5rem 0 0 0;'>
-                IMMEDIATE ACTION REQUIRED
+                IMMEDIATE ACTION
             </p>
         </div>
         """, unsafe_allow_html=True)
     else:
         progress = max(0, min(100, int((1 - days_to_end/30) * 100)))
         st.markdown(f"""
-        <p style='font-family: Share Tech Mono; color: #00ff00; 
-                  font-size: 1.8rem; text-align: center; margin: 1rem 0;'>
-            T-{days_to_end} DAYS
-        </p>
+        <div style='margin-top: 2rem;'>
+            <p style='font-family: Share Tech Mono; color: #00ff00; 
+                      font-size: 1.8rem; text-align: center; margin: 1rem 0;'>
+                T-{days_to_end} DAYS
+            </p>
+        </div>
         """, unsafe_allow_html=True)
-        st.progress(progress, text=f"CYCLE PROGRESS: {progress}%")
+        st.progress(progress, text=f"CYCLE: {progress}%")
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
-# === CARD 2: SUICIDE SQUAD WITH DYNAMIC BACKGROUND ===
+# === CARD 2: SUICIDE SQUAD (With Images) ===
 with col2:
-    # Determine which image to use based on status
     if sq_fire:
-        # 只有真正开火（Deploy）时，才使用 Attack 图片
-        bg_image = ATTACK_IMAGE
-        border_color = "#ff0055"
-        glow_color = "255, 0, 85"
+        sq_bg = ATTACK_IMAGE
+        sq_border = "#ff0055" # Red
+        sq_glow = "255, 0, 85"
     elif sq_alert:
-        # 预警状态（Alert）现在保持使用 Rest 图片
-        bg_image = REST_IMAGE  # <--- 这里修改了，原为 ATTACK_IMAGE
-        border_color = "#ffa500"
-        glow_color = "255, 165, 0"
+        sq_bg = ATTACK_IMAGE
+        sq_border = "#ffa500" # Orange
+        sq_glow = "255, 165, 0"
     else:
-        # 正常状态
-        bg_image = REST_IMAGE
-        border_color = "#00ff00"
-        glow_color = "0, 255, 0"
+        sq_bg = REST_IMAGE
+        sq_border = "#00ff00" # Green
+        sq_glow = "0, 255, 0"
     
+    # Use 'sq-card' class to isolate CSS
     st.markdown(f"""
-    <div class='tactical-card scanline' style='border-color: {border_color}; 
-                box-shadow: 0 0 30px rgba({glow_color}, 0.3);'>
+    <div class='tactical-card-base scanline sq-card' style='border-color: {sq_border}; 
+                box-shadow: 0 0 30px rgba({sq_glow}, 0.3);'>
         <style>
-            .tactical-card::before {{
-                background-image: url('data:image/png;base64,{bg_image}');
-            }}
+            .sq-card::before {{ background-image: url('data:image/png;base64,{sq_bg}'); }}
         </style>
         <div class='tactical-card-content'>
             <p style='font-family: Orbitron; color: #ff00ff; font-size: 1.2rem; 
-                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;
-                      text-shadow: 0 0 10px rgba(255, 0, 255, 0.8);'>
+                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
                 🏴‍☠️ SUICIDE SQUAD
             </p>
     """, unsafe_allow_html=True)
@@ -473,8 +381,7 @@ with col2:
     if sq_fire:
         st.markdown("""
             <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;
-                        box-shadow: 0 0 30px rgba(255, 0, 85, 0.5);'>
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
                 <p style='font-family: Orbitron; color: #ffffff; font-size: 2rem; 
                           margin: 0; font-weight: 900; text-shadow: 0 0 20px #ff0055;'>
                     🔴 DEPLOY
@@ -483,122 +390,123 @@ with col2:
                           font-size: 1.5rem; margin: 0.8rem 0; font-weight: 900;'>
                     BUY QLD
                 </p>
-                <p style='font-family: Share Tech Mono; color: #ffff00; 
-                          font-size: 0.8rem; margin: 0;'>
-                    SIGNAL: ACTIVE
-                </p>
             </div>
         """, unsafe_allow_html=True)
     elif sq_alert:
         st.markdown(f"""
             <div style='background: rgba(255,165,0,0.85); border: 2px solid #ffa500; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;
-                        box-shadow: 0 0 30px rgba(255, 165, 0, 0.5);'>
-                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; 
-                          margin: 0; font-weight: 900;'>
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
+                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; margin: 0;'>
                     🟡 ALERT
                 </p>
                 <p style='font-family: Share Tech Mono; color: #000000; 
                           font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
                     {dist_pct:.2f}%
                 </p>
-                <p style='font-family: Share Tech Mono; color: #000000; 
-                          font-size: 0.8rem; margin: 0;'>
-                    PROXIMITY WARNING
-                </p>
             </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
             <div style='background: rgba(0,255,0,0.85); border: 2px solid #00ff00; 
-                        padding: 1.5rem; text-align: center; margin-top: 2rem;
-                        box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);'>
-                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; 
-                          margin: 0; font-weight: 900;'>
+                        padding: 1.5rem; text-align: center; margin-top: 2rem;'>
+                <p style='font-family: Orbitron; color: #000000; font-size: 1.8rem; margin: 0;'>
                     🟢 STANDBY
                 </p>
                 <p style='font-family: Share Tech Mono; color: #000000; 
                           font-size: 2rem; margin: 0.8rem 0; font-weight: 900;'>
                     +{dist_pct:.2f}%
                 </p>
-                <p style='font-family: Share Tech Mono; color: #000000; 
-                          font-size: 0.8rem; margin: 0;'>
-                    RSI: {latest['RSI']:.1f} | SAFE
-                </p>
             </div>
         """, unsafe_allow_html=True)
     
     st.markdown("</div></div>", unsafe_allow_html=True)
 
-
-# === CARD 3: PANDA FORCE ===
+# === CARD 3: PANDA FORCE (Now with Bull/Bear Images) ===
 with col3:
-    st.markdown("""
-    <div class='scanline' style='background: rgba(0,0,0,0.6); border: 2px solid #00ff00; 
-                padding: 1.5rem; height: 320px; box-shadow: 0 0 30px rgba(0,255,0,0.2);'>
-        <p style='font-family: Orbitron; color: #00ff00; font-size: 1.2rem; 
-                  margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
-            🐼 PANDA FORCE
-        </p>
+    # Determine Status and Image
+    if panda_cb:
+        panda_bg = BEAR_IMAGE # Emergency = Bear Image
+        panda_border = "#ff0055" # Red
+        panda_glow = "255, 0, 85"
+    elif panda_bull:
+        panda_bg = BULL_IMAGE # Bull Image
+        panda_border = "#00ff00" # Green
+        panda_glow = "0, 255, 0"
+    else:
+        panda_bg = BEAR_IMAGE # Bear Image
+        panda_border = "#00bfff" # Blue
+        panda_glow = "0, 191, 255"
+
+    # Use 'panda-card' class to isolate CSS
+    st.markdown(f"""
+    <div class='tactical-card-base scanline panda-card' style='border-color: {panda_border}; 
+                box-shadow: 0 0 30px rgba({panda_glow}, 0.3);'>
+        <style>
+            .panda-card::before {{ background-image: url('data:image/png;base64,{panda_bg}'); }}
+        </style>
+        <div class='tactical-card-content'>
+            <p style='font-family: Orbitron; color: {panda_border}; font-size: 1.2rem; 
+                      margin: 0 0 1rem 0; text-align: center; letter-spacing: 2px;'>
+                🐼 PANDA FORCE
+            </p>
     """, unsafe_allow_html=True)
     
     if panda_cb:
         st.markdown(f"""
-        <div style='background: rgba(255,0,0,0.3); border: 2px solid #ff0055; 
-                    padding: 1rem; text-align: center;'>
-            <p style='font-family: Orbitron; color: #ff0055; font-size: 1.5rem; 
-                      margin: 0; font-weight: 900;'>
+        <div style='background: rgba(255,0,0,0.85); border: 2px solid #ff0055; 
+                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #ff0055;'>
+            <p style='font-family: Orbitron; color: #ffffff; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900; text-shadow: 0 0 10px black;'>
                 🚨 EMERGENCY
             </p>
             <p style='font-family: Share Tech Mono; color: #ffffff; 
-                      font-size: 1.2rem; margin: 0.5rem 0;'>
+                      font-size: 1.2rem; margin: 0.5rem 0; font-weight: 900;'>
                 SWITCH TO QQQ
             </p>
-            <p style='font-family: Share Tech Mono; color: #ff0055; 
-                      font-size: 0.9rem; margin: 0.5rem 0 0 0;'>
+            <p style='font-family: Share Tech Mono; color: #ffffff; 
+                      font-size: 0.9rem; margin: 0;'>
                 DROP: {latest['Drawdown']*100:.2f}%
             </p>
         </div>
         """, unsafe_allow_html=True)
+    elif panda_bull:
+        st.markdown("""
+        <div style='background: rgba(0,255,0,0.75); border: 2px solid #00ff00; 
+                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #00ff00;'>
+            <p style='font-family: Orbitron; color: #000000; font-size: 1.5rem; 
+                      margin: 0; font-weight: 900;'>
+                🐂 BULL MODE
+            </p>
+            <p style='font-family: Share Tech Mono; color: #000000; 
+                      font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
+                QLD (2X)
+            </p>
+            <p style='font-family: Share Tech Mono; color: #000000; 
+                      font-size: 0.7rem; margin: 0;'>
+                AGGRESSIVE STANCE
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        if panda_bull:
-            st.markdown("""
-            <div style='background: rgba(0,255,0,0.2); border: 2px solid #00ff00; 
-                        padding: 1rem; text-align: center;'>
-                <p style='font-family: Orbitron; color: #00ff00; font-size: 1.5rem; 
-                          margin: 0; font-weight: 900;'>
-                    🐂 BULL MODE
-                </p>
-                <p style='font-family: Share Tech Mono; color: #ffffff; 
-                          font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
-                    QLD (2X)
-                </p>
-                <p style='font-family: Share Tech Mono; color: #00ff00; 
-                          font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
-                    AGGRESSIVE STANCE
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div style='background: rgba(0,191,255,0.1); border: 2px solid #00bfff; 
-                        padding: 1rem; text-align: center;'>
-                <p style='font-family: Orbitron; color: #00bfff; font-size: 1.5rem; 
-                          margin: 0; font-weight: 700;'>
-                    🐻 BEAR MODE
-                </p>
-                <p style='font-family: Share Tech Mono; color: #ffffff; 
-                          font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
-                    CASH (0X)
-                </p>
-                <p style='font-family: Share Tech Mono; color: #00bfff; 
-                          font-size: 0.7rem; margin: 0.5rem 0 0 0;'>
-                    DEFENSIVE POSITION
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown("""
+        <div style='background: rgba(0,191,255,0.75); border: 2px solid #00bfff; 
+                    padding: 1.5rem; text-align: center; margin-top: 2rem; box-shadow: 0 0 15px #00bfff;'>
+            <p style='font-family: Orbitron; color: #000000; font-size: 1.5rem; 
+                      margin: 0; font-weight: 700;'>
+                🐻 BEAR MODE
+            </p>
+            <p style='font-family: Share Tech Mono; color: #000000; 
+                      font-size: 1.8rem; margin: 0.5rem 0; font-weight: 900;'>
+                CASH (0X)
+            </p>
+            <p style='font-family: Share Tech Mono; color: #000000; 
+                      font-size: 0.7rem; margin: 0;'>
+                DEFENSIVE POSITION
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -708,9 +616,9 @@ st.markdown("""
             border-top: 2px solid #00ffff;'>
     <p style='font-family: Share Tech Mono; color: #00ffff; font-size: 0.7rem; 
               margin: 0; letter-spacing: 2px;'>
-        🐼 PANDA TACTICAL COMMAND CENTER | v2.1 ENHANCED EDITION<br>
+        🐼 PANDA TACTICAL COMMAND CENTER | v2.2 FULL VISUAL EDITION<br>
         <span style='color: #00ff00;'>● SYSTEM OPERATIONAL</span> | 
-        <span style='color: #ff00ff;'>● VISUAL INDICATORS ACTIVE</span>
+        <span style='color: #ff00ff;'>● ALL ASSETS LOADED</span>
     </p>
 </div>
 """, unsafe_allow_html=True)
