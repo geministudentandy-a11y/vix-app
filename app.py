@@ -1,188 +1,196 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from pandas.tseries.offsets import MonthEnd
-import os
+from datetime import datetime
 
 # ==========================================
-# ⚙️ 策略参数
+# ⚙️ 页面配置
 # ==========================================
-PANDA_MA_PERIOD = 200
-PANDA_MOM_PERIOD = 95
-CB_N = 5
-CB_DROP = 0.075
-SQ_BB_PERIOD = 20
-SQ_BB_STD = 2.5
-SQ_RSI_PERIOD = 14
-SQ_RSI_ENTRY = 30
-SQ_RSI_ALERT = 35
+st.set_page_config(
+    page_title="Kung Fu Panda Command Center",
+    page_icon="🐼",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def generate_html():
-    print("📡 正在获取数据并生成网页...")
+# ==========================================
+# 🎛️ 侧边栏：参数控制
+# ==========================================
+st.sidebar.title("🛠️ 战术参数配置")
+
+st.sidebar.subheader("🐼 熊猫 (趋势)")
+PANDA_MA = st.sidebar.number_input("SPY 均线周期", value=200)
+PANDA_MOM = st.sidebar.number_input("QQQ 动量周期", value=95)
+CB_DROP = st.sidebar.number_input("熔断阈值 (小数)", value=0.075, step=0.005, format="%.3f")
+
+st.sidebar.subheader("🏴‍☠️ 敢死队 (反转)")
+SQ_BB_N = st.sidebar.number_input("布林带周期", value=20)
+SQ_BB_STD = st.sidebar.number_input("布林带偏差", value=2.5)
+SQ_RSI_ENTRY = st.sidebar.number_input("RSI 入场阈值", value=30)
+SQ_RSI_ALERT = st.sidebar.number_input("RSI 预警阈值", value=35)
+
+# ==========================================
+# 📥 数据获取与计算
+# ==========================================
+@st.cache_data(ttl=3600) # 缓存1小时，避免重复下载
+def get_data():
     tickers = ['SPY', 'QQQ']
-    try:
-        data = yf.download(tickers, period="2y", progress=False, auto_adjust=True)
-        if isinstance(data.columns, pd.MultiIndex):
-            df = data['Close'].copy()
-        else:
-            df = data.copy()
-        df = df.dropna()
-    except Exception as e:
-        print(f"Error: {e}")
-        return
+    data = yf.download(tickers, period="2y", progress=False, auto_adjust=True)
+    if isinstance(data.columns, pd.MultiIndex):
+        df = data['Close'].copy()
+    else:
+        df = data.copy()
+    return df.dropna()
 
-    # === 计算指标 ===
-    latest = df.iloc[-1]
-    curr_date = df.index[-1]
-    date_str = curr_date.strftime('%Y-%m-%d')
-    weekday_str = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][curr_date.weekday()]
+def calculate_metrics(df):
+    # 1. 熊猫计算
+    df['SPY_MA'] = df['SPY'].rolling(PANDA_MA).mean()
+    df['QQQ_MOM_Ref'] = df['QQQ'].shift(PANDA_MOM)
     
-    # 日历
-    month_end_date = curr_date + MonthEnd(0)
-    days_to_end = (month_end_date - curr_date).days
+    spy_max = df['SPY'].rolling(5).max()
+    df['Drawdown'] = (df['SPY'] / spy_max) - 1
     
-    # 熊猫
-    spy_ma200 = df['SPY'].rolling(PANDA_MA_PERIOD).mean().iloc[-1]
-    qqq_old = df['QQQ'].shift(PANDA_MOM_PERIOD).iloc[-1]
-    spy_max = df['SPY'].rolling(CB_N).max().iloc[-1]
-    drawdown = (latest['SPY'] / spy_max) - 1
-    
-    panda_bull = (latest['SPY'] > spy_ma200) and (latest['QQQ'] > qqq_old)
-    panda_cb = drawdown < -CB_DROP
-    
-    # 敢死队
-    sma = df['QQQ'].rolling(SQ_BB_PERIOD).mean()
-    std = df['QQQ'].rolling(SQ_BB_PERIOD).std()
-    lower_band = sma - (SQ_BB_STD * std)
+    # 2. 敢死队计算
+    sma = df['QQQ'].rolling(SQ_BB_N).mean()
+    std = df['QQQ'].rolling(SQ_BB_N).std()
+    df['Lower_Band'] = sma - (SQ_BB_STD * std)
     
     delta = df['QQQ'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(SQ_RSI_PERIOD).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(SQ_RSI_PERIOD).mean()
+    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
+    df['RSI'] = 100 - (100 / (1 + rs))
     
-    curr_rsi = rsi.iloc[-1]
-    curr_lower = lower_band.iloc[-1]
-    
-    sq_fire = (latest['QQQ'] < curr_lower) and (curr_rsi < SQ_RSI_ENTRY)
-    sq_gap_pct = (latest['QQQ'] - curr_lower) / latest['QQQ'] * 100
-    sq_alert = (sq_gap_pct < 2.0) or (curr_rsi < SQ_RSI_ALERT)
+    return df
 
-    # === 🎨 生成 HTML ===
-    # 颜色定义
-    color_bg = "#111827" # 深黑底
-    color_card = "#1F2937" # 卡片灰
-    color_text = "#F3F4F6"
-    color_green = "#10B981"
-    color_red = "#EF4444"
-    color_yellow = "#F59E0B"
-    
-    # 逻辑判断颜色和文字
-    # 1. 月历状态
-    if days_to_end == 0:
-        cal_status = "⚠️ 月底调仓日 (Last Day)"
-        cal_color = color_yellow
-    elif days_to_end <= 3:
-        cal_status = f"⏳ 临近月底 (剩 {days_to_end} 天)"
-        cal_color = color_text
-    else:
-        cal_status = f"💤 非调仓期 (剩 {days_to_end} 天)"
-        cal_color = "#9CA3AF"
-
-    # 2. 敢死队状态
-    if sq_fire:
-        sq_title = "🔴 全员出击 (ACTIVE)"
-        sq_class = "bg-red-600 animate-pulse"
-        sq_msg = "立即买入 $10,000 QLD"
-    elif sq_alert:
-        sq_title = "🟡 高度警惕 (WATCHING)"
-        sq_class = "bg-yellow-600"
-        sq_msg = "接近射程，准备弹药"
-    else:
-        sq_title = "🟢 回营休息 (SLEEP)"
-        sq_class = "bg-green-600"
-        sq_msg = "无操作"
-
-    # 3. 熊猫状态
-    if panda_cb:
-        p_title = "🚨 熔断触发 (CRASH)"
-        p_bg = "border-red-500 border-2"
-        p_act = "QLD 换 QQQ"
-    elif panda_bull:
-        p_title = "🐂 牛市进攻 (BULL)"
-        p_bg = "border-green-500 border-2"
-        p_act = "持有 QLD"
-    else:
-        p_title = "🐻 熊市防御 (BEAR)"
-        p_bg = "border-gray-500 border-2"
-        p_act = "空仓 / 现金"
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="zh">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Kung Fu Panda Command Center</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-            body {{ background-color: {color_bg}; color: {color_text}; font-family: sans-serif; }}
-        </style>
-    </head>
-    <body class="p-6 max-w-md mx-auto">
+try:
+    with st.spinner('📡 正在连接前线数据中心...'):
+        raw_df = get_data()
+        df = calculate_metrics(raw_df)
         
-        <div class="text-center mb-6">
-            <h1 class="text-3xl font-bold tracking-wider text-white">🐼 KUNG FU PANDA</h1>
-            <p class="text-gray-400 mt-2">{date_str} <span class="text-xs bg-gray-700 px-2 py-1 rounded">{weekday_str}</span></p>
-        </div>
+    latest = df.iloc[-1]
+    curr_date = df.index[-1]
+    
+except Exception as e:
+    st.error(f"数据获取失败: {e}")
+    st.stop()
 
-        <div class="bg-gray-800 rounded-xl p-4 mb-4 shadow-lg">
-            <h2 class="text-gray-400 text-xs uppercase tracking-widest mb-1">Monthly Schedule</h2>
-            <div class="text-lg font-semibold" style="color: {cal_color}">{cal_status}</div>
-        </div>
+# ==========================================
+# 📊 仪表盘逻辑
+# ==========================================
 
-        <div class="rounded-xl p-5 mb-4 shadow-lg text-white {sq_class}">
-            <div class="flex justify-between items-center mb-2">
-                <h2 class="font-bold text-xl">🏴‍☠️ 敢死队 (SQ)</h2>
-                <span class="text-xs bg-black bg-opacity-20 px-2 py-1 rounded">QQQ</span>
-            </div>
-            <div class="text-2xl font-black mb-2">{sq_title}</div>
-            <div class="bg-black bg-opacity-20 rounded p-3 text-sm">
-                <p>👉 指令: <strong>{sq_msg}</strong></p>
-                <div class="mt-2 border-t border-white border-opacity-20 pt-2 flex justify-between">
-                    <span>距下轨: {sq_gap_pct:.2f}%</span>
-                    <span>RSI: {curr_rsi:.1f}</span>
-                </div>
-            </div>
-        </div>
+# 1. 状态判定
+# 日历
+month_end = curr_date + MonthEnd(0)
+days_to_end = (month_end - curr_date).days
+is_month_end = days_to_end == 0
 
-        <div class="bg-gray-800 rounded-xl p-5 mb-6 shadow-lg {p_bg}">
-            <div class="flex justify-between items-center mb-2">
-                <h2 class="font-bold text-xl">🐼 熊猫主力</h2>
-                <span class="text-xs bg-gray-700 px-2 py-1 rounded">SPY Trend</span>
-            </div>
-            <div class="text-xl font-bold mb-2">{p_title}</div>
-            <div class="text-gray-300 text-sm">
-                建议持仓: <strong class="text-white text-lg">{p_act}</strong>
-            </div>
-            <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
-                <div>SPY > MA200: {str(latest['SPY'] > spy_ma200)}</div>
-                <div>QQQ Momentum: {str(latest['QQQ'] > qqq_old)}</div>
-            </div>
-        </div>
+# 熊猫
+panda_bull = (latest['SPY'] > latest['SPY_MA']) and (latest['QQQ'] > latest['QQQ_MOM_Ref'])
+panda_cb = latest['Drawdown'] < -CB_DROP
 
-        <div class="text-center text-gray-600 text-xs">
-            SPY: ${latest['SPY']:.2f} | QQQ: ${latest['QQQ']:.2f}<br>
-            Updated at {datetime.now().strftime('%H:%M:%S UTC')}
-        </div>
+# 敢死队
+sq_fire = (latest['QQQ'] < latest['Lower_Band']) and (latest['RSI'] < SQ_RSI_ENTRY)
+dist_pct = (latest['QQQ'] - latest['Lower_Band']) / latest['QQQ'] * 100
+sq_alert = (dist_pct < 2.0) or (latest['RSI'] < SQ_RSI_ALERT)
 
-    </body>
-    </html>
-    """
+# ==========================================
+# 🖥️ UI 显示层
+# ==========================================
 
-    with open("index.html", "w", encoding='utf-8') as f:
-        f.write(html_content)
-    print("✅ 网页生成完毕: index.html")
+st.title("🐼 功夫熊猫 · 指挥官仪表盘")
+st.markdown(f"📅 **数据日期**: {curr_date.strftime('%Y-%m-%d')} | 📊 **SPY**: ${latest['SPY']:.2f} | 💻 **QQQ**: ${latest['QQQ']:.2f}")
 
-if __name__ == "__main__":
-    generate_html()
+st.divider()
+
+# --- 三大卡片布局 ---
+col1, col2, col3 = st.columns(3)
+
+# 卡片 1: 月度日历
+with col1:
+    st.subheader("🗓️ 月度战略")
+    if is_month_end:
+        st.warning("⚠️ 今天是月底最后一天")
+        st.markdown("**👉 请检查熊猫状态决定是否调仓**")
+    elif days_to_end <= 3:
+        st.info(f"⏳ 临近月底 (剩 {days_to_end} 天)")
+    else:
+        st.success(f"💤 非调仓期 (剩 {days_to_end} 天)")
+        st.caption("保持当前战略不动")
+
+# 卡片 2: 敢死队 (Suicide Squad)
+with col2:
+    st.subheader("🏴‍☠️ 敢死队 (SQ)")
+    
+    if sq_fire:
+        st.error("🔴 全员出击 (ACTIVE)")
+        st.markdown("### 👉 买入 QLD")
+        st.caption(f"击穿下轨 & RSI {latest['RSI']:.1f}")
+    elif sq_alert:
+        st.warning("🟡 高度警惕 (WATCHING)")
+        st.metric("距离下轨", f"{dist_pct:.2f}%", delta_color="inverse")
+        st.metric("当前 RSI", f"{latest['RSI']:.1f}")
+    else:
+        st.success("🟢 回营休息 (SLEEP)")
+        st.metric("安全距离", f"+{dist_pct:.2f}%")
+        st.caption(f"当前 RSI: {latest['RSI']:.1f}")
+
+# 卡片 3: 熊猫主力 (Panda)
+with col3:
+    st.subheader("🐼 熊猫主力")
+    
+    if panda_cb:
+        st.error("🚨 熔断触发 (CRASH)")
+        st.markdown("### 👉 全换 QQQ")
+        st.caption(f"5日回撤: {latest['Drawdown']*100:.2f}%")
+    elif panda_bull:
+        st.success("🐂 牛市进攻 (BULL)")
+        st.markdown("### 👉 持有 QLD")
+        st.caption("趋势向上 & 动能充足")
+    else:
+        st.info("🐻 熊市防御 (BEAR)")
+        st.markdown("### 👉 空仓/现金")
+        st.caption("趋势转弱")
+
+st.divider()
+
+# ==========================================
+# 📈 交互式图表 (Plotly)
+# ==========================================
+st.subheader("📉 战术地形图 (QQQ)")
+
+# 创建子图: 上面是价格+布林带，下面是RSI
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                    vertical_spacing=0.05, row_heights=[0.7, 0.3])
+
+# 主图: QQQ 价格
+fig.add_trace(go.Scatter(x=df.index, y=df['QQQ'], mode='lines', name='QQQ Price', line=dict(color='white', width=1)), row=1, col=1)
+
+# 主图: 布林带下轨
+fig.add_trace(go.Scatter(x=df.index, y=df['Lower_Band'], mode='lines', name='Lower Band (Panic)', 
+                         line=dict(color='red', width=1, dash='dash')), row=1, col=1)
+
+# 标记: 敢死队触发点
+sq_signals = df[(df['QQQ'] < df['Lower_Band']) & (df['RSI'] < SQ_RSI_ENTRY)]
+fig.add_trace(go.Scatter(x=sq_signals.index, y=sq_signals['QQQ'], mode='markers', name='SQ Buy Signal',
+                         marker=dict(color='yellow', size=10, symbol='triangle-up')), row=1, col=1)
+
+# 副图: RSI
+fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI', line=dict(color='#00F0FF')), row=2, col=1)
+
+# RSI 辅助线
+fig.add_hline(y=30, line_dash="dot", line_color="red", row=2, col=1, annotation_text="Oversold (30)")
+fig.add_hline(y=70, line_dash="dot", line_color="gray", row=2, col=1)
+
+fig.update_layout(height=600, template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
+st.plotly_chart(fig, use_container_width=True)
+
+# ==========================================
+# 📋 原始数据查看
+# ==========================================
+with st.expander("🔍 查看最近 5 天详细数据"):
+    cols = ['SPY', 'QQQ', 'RSI', 'Lower_Band', 'Drawdown']
+    st.dataframe(df[cols].tail(5).style.format("{:.2f}"))
