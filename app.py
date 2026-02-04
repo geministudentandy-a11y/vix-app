@@ -34,8 +34,8 @@ def load_image_as_base64(filepath):
         return base64.b64encode(f.read()).decode()
 
 # Load the tactical images
-REST_IMAGE = load_image_as_base64('/mnt/user-data/images/rest.png')
-ATTACK_IMAGE = load_image_as_base64('/mnt/user-data/images/attack.png')
+REST_IMAGE = load_image_as_base64('/mount/src/vix-app/images/rest.png')
+ATTACK_IMAGE = load_image_as_base64('/mount/src/vix-app/images/attack.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
@@ -680,4 +680,5 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
 
