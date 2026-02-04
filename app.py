@@ -34,8 +34,8 @@ def load_image_as_base64(filepath):
         return base64.b64encode(f.read()).decode()
 
 # Load the tactical images
-REST_IMAGE = load_image_as_base64('images/rest.png')
-ATTACK_IMAGE = load_image_as_base64('images/attack.png')
+REST_IMAGE = load_image_as_base64('/images/rest.png')
+ATTACK_IMAGE = load_image_as_base64('/images/attack.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
