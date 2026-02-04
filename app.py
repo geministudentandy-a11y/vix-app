@@ -2,6 +2,7 @@
 🐼 PANDA TACTICAL COMMAND CENTER - Enhanced Edition
 ====================================================
 Cyberpunk dashboard with dynamic visual status indicators
+Fixed Version: Auto-detects image paths and handles missing files gracefully.
 """
 
 import streamlit as st
@@ -12,6 +13,7 @@ from plotly.subplots import make_subplots
 from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
 import base64
+import os  # 新增：用于检测文件路径
 
 # ==========================================
 # 🎨 PAGE CONFIGURATION
@@ -25,17 +27,40 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🖼️ LOAD IMAGES AS BASE64
+# 🖼️ LOAD IMAGES AS BASE64 (ROBUST VERSION)
 # ==========================================
 
-def load_image_as_base64(filepath):
-    """Convert image to base64 for embedding"""
-    with open(filepath, 'rb') as f:
-        return base64.b64encode(f.read()).decode()
+def load_image_as_base64(filename):
+    """
+    尝试从多个位置加载图片，并转换为 base64。
+    如果找不到图片，返回一个透明像素，防止程序崩溃。
+    """
+    # 定义程序会去寻找图片的路径列表
+    possible_paths = [
+        os.path.join("images", filename),  # 优先找 images 文件夹
+        filename,                          # 其次找根目录
+        os.path.join(os.getcwd(), "images", filename), # 绝对路径尝试
+    ]
 
-# Load the tactical images
-REST_IMAGE = load_image_as_base64('/images/rest.png')
-ATTACK_IMAGE = load_image_as_base64('/images/attack.png')
+    for filepath in possible_paths:
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'rb') as f:
+                    # 找到文件，成功返回
+                    return base64.b64encode(f.read()).decode()
+            except Exception as e:
+                # 文件存在但读取失败
+                print(f"Error reading {filepath}: {e}")
+                continue
+    
+    # 如果所有路径都找不到文件，打印警告并返回透明像素（防止报错）
+    print(f"⚠️ Warning: Image {filename} not found in expected paths.")
+    st.toast(f"⚠️ Warning: Could not find image: {filename}", icon="⚠️")
+    return "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" # 1x1透明GIF
+
+# 加载战术图片 (只需要写文件名即可，程序会自动找路径)
+REST_IMAGE = load_image_as_base64('rest.png')
+ATTACK_IMAGE = load_image_as_base64('attack.png')
 
 # ==========================================
 # 💎 CYBERPUNK CSS INJECTION
@@ -297,6 +322,11 @@ def get_market_data():
 
 try:
     df = get_market_data()
+    # Ensure we have data before proceeding
+    if df.empty:
+        st.error("⚠️ Data download returned empty. Market may be closed or ticker symbol error.")
+        st.stop()
+        
     latest = df.iloc[-1]
     curr_date = df.index[-1]
 except Exception as e:
@@ -680,5 +710,3 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
-
-
