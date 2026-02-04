@@ -254,127 +254,120 @@ with m4:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 🎴 TACTICAL CARDS
+# 🎴 战术卡片 (修复版)
 # ==========================================
 
 c1, c2, c3 = st.columns(3)
 
-# === CARD 1: MELTDOWN MONITOR ===
+# 辅助函数：去除缩进，防止被识别为代码块
+def clean_html(html_str):
+    return html_str.replace("\n    ", "\n").replace("\n\t", "\n").strip()
+
+# === 卡片 1: 熔断监测 (MELTDOWN) ===
 with c1:
     border_c = "#ff0055" if is_meltdown else "#00ffff"
+    status_text = "🚨 已熔断 (EMERGENCY)" if is_meltdown else "🟢 正常 (SECURE)"
     
-    st.markdown(f"""
-    <div class='tactical-card-base scanline card-1' style='border-color: {border_c};'>
-        <style> .card-1::before {{ background-image: url('data:image/png;base64,{MELTDOWN_IMAGE}'); }} </style>
-        <div class='card-content'>
-            <div class='card-title' style='color: {border_c};'>☢️ 熔断监测 (MELTDOWN)</div>
-            
-            <div class='card-data'>
-                <div>当前回撤: <span style='color: #ff0055;'>{current_dd_pct*100:.2f}%</span></div>
-                <div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>
-                    触发阈值: {cb_target_pct*100:.1f}%
-                </div>
-                <div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>
-                    离熔断触发还差: <br>
-                    <span style='font-size: 1.8rem; color: #ff0055;'>{dist_to_meltdown:.2f}%</span> 跌幅
-                </div>
-            </div>
+    # 构建无缩进的 HTML
+    html_content = f"""
+<div class='tactical-card-base scanline card-1' style='border-color: {border_c};'>
+<style>.card-1::before {{ background-image: url('data:image/png;base64,{MELTDOWN_IMAGE}'); }}</style>
+<div class='card-content'>
+<div class='card-title' style='color: {border_c};'>☢️ 熔断监测 (MELTDOWN)</div>
+<div class='card-data'>
+<div>当前回撤: <span style='color: #ff0055;'>{current_dd_pct*100:.2f}%</span></div>
+<div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>触发阈值: {cb_target_pct*100:.1f}%</div>
+<div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>离熔断触发还差: <br><span style='font-size: 1.8rem; color: #ff0055;'>{dist_to_meltdown:.2f}%</span> 跌幅</div>
+</div>
+<div class='card-status' style='color: {border_c};'>{status_text}</div>
+</div>
+</div>
+"""
+    st.markdown(clean_html(html_content), unsafe_allow_html=True)
 
-            <div class='card-status' style='color: {border_c};'>
-                { "🚨 已熔断 (EMERGENCY)" if is_meltdown else "🟢 正常 (SECURE)" }
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# === CARD 2: SUICIDE SQUAD ===
+# === 卡片 2: 敢死队 (SQUAD) ===
 with c2:
-    # Logic Interpretation
     if is_attack:
         state_text = "🔴 突击 (ATTACK)"
         state_color = "#ff0055"
         bg_img = ATTACK_IMAGE
-        # In Attack mode, calculate distance to Mean (Retreat/Profit) or just show active
-        logic_html = f"""
-        <div style='color: #ff0055; font-weight: bold;'>已进入击球区!</div>
-        <div style='font-size: 0.9rem; color: #aaa;'>RSI: {latest['RSI']:.1f} (Target < {SQ_RSI_ENTRY})</div>
-        """
-    elif dist_to_attack_pct > 0:
-        state_text = "🟡 休整 (REST)"
-        state_color = "#ffa500"
-        bg_img = REST_IMAGE
-        logic_html = f"""
-        <div>需继续下跌 <span style='color: #ff0055; font-size: 1.4rem;'>{dist_to_attack_pct:.2f}%</span></div>
-        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>才能触发 [突击/买入] 信号</div>
-        <div style='font-size: 0.8rem; color: #aaa;'>目标价位: ${lower_band:.2f}</div>
-        """
+        current_label = "当前 RSI"
+        current_val = f"{latest['RSI']:.1f}"
+        target_label = "RSI 退出阈值"
+        target_val = "30.0"
+        dist_label = "状态确认"
+        dist_val = "已击穿"
+        dist_unit = ""
     else:
-        # Price is below band but RSI not cool enough, or other edge case
-        state_text = "⚪ 观望 (WAIT)"
-        state_color = "#ccc"
+        state_text = "🟡 休整 (REST)"
+        state_color = "#ffa500" if dist_to_lower < 2.0 else "#00ff00"
         bg_img = REST_IMAGE
-        logic_html = f"<div>等待 RSI 冷却 ({latest['RSI']:.1f})</div>"
+        current_label = "当前价格 (QQQ)"
+        current_val = f"${price_qqq:.2f}"
+        target_label = "下轨触发价"
+        target_val = f"${lower_band:.2f}"
+        dist_label = "离突击区还差"
+        dist_val = f"{dist_to_lower:.2f}%"
+        dist_unit = "跌幅"
 
-    st.markdown(f"""
-    <div class='tactical-card-base scanline card-2' style='border-color: {state_color};'>
-        <style> .card-2::before {{ background-image: url('data:image/png;base64,{bg_img}'); }} </style>
-        <div class='card-content'>
-            <div class='card-title' style='color: {state_color};'>🏴‍☠️ 敢死队 (SQUAD)</div>
-            
-            <div class='card-data'>
-                {logic_html}
-            </div>
+    html_content = f"""
+<div class='tactical-card-base scanline card-2' style='border-color: {state_color};'>
+<style>.card-2::before {{ background-image: url('data:image/png;base64,{bg_img}'); }}</style>
+<div class='card-content'>
+<div class='card-title' style='color: {state_color};'>🏴‍☠️ 敢死队 (SQUAD)</div>
+<div class='card-data'>
+<div>{current_label}: <span style='color: {state_color};'>{current_val}</span></div>
+<div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>{target_label}: {target_val}</div>
+<div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>{dist_label}: <br><span style='font-size: 1.8rem; color: {state_color};'>{dist_val}</span> {dist_unit}</div>
+</div>
+<div class='card-status' style='color: {state_color};'>{state_text}</div>
+</div>
+</div>
+"""
+    st.markdown(clean_html(html_content), unsafe_allow_html=True)
 
-            <div class='card-status' style='color: {state_color};'>
-                {state_text}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# === CARD 3: PANDA FORCE ===
+# === 卡片 3: 熊猫主力 (PANDA FORCE) ===
 with c3:
     if is_bull:
         state_text = "🐂 满仓 (LNAS)"
         state_color = "#00ff00"
         bg_img = BULL_IMAGE
-        logic_html = f"""
-        <div>安全垫 (Safety Buffer):</div>
-        <div style='color: #ff0055; font-size: 1.4rem;'>{dist_to_flip:.2f}%</div>
-        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>
-            跌幅超过此数值将触发<br>[转熊/空仓] 信号
-        </div>
-        """
+        current_label = "当前趋势"
+        current_val = "多头排列"
+        target_label = "反转条件"
+        target_val = "跌破 MA/MOM"
+        dist_label = "离转熊还差 (安全垫)"
+        dist_val = f"{dist_to_flip:.2f}%"
+        dist_unit = "跌幅"
+        dist_color = "#00ff00"
     else:
         state_text = "🐻 空仓 (CASH)"
         state_color = "#00bfff"
         bg_img = BEAR_IMAGE
-        logic_html = f"""
-        <div>需上涨 (Need Rally):</div>
-        <div style='color: #00ff00; font-size: 1.4rem;'>{dist_to_flip:.2f}%</div>
-        <div style='font-size: 0.8rem; color: #aaa; margin-top:5px;'>
-            涨幅超过此数值将触发<br>[转牛/满仓] 信号
-        </div>
-        """
+        current_label = "当前趋势"
+        current_val = "空头/震荡"
+        target_label = "反转条件"
+        target_val = "突破 MA & MOM"
+        dist_label = "离转牛还差 (需上涨)"
+        dist_val = f"{dist_to_flip:.2f}%"
+        dist_unit = "涨幅"
+        dist_color = "#ff0055"
 
-    st.markdown(f"""
-    <div class='tactical-card-base scanline card-3' style='border-color: {state_color};'>
-        <style> .card-3::before {{ background-image: url('data:image/png;base64,{bg_img}'); }} </style>
-        <div class='card-content'>
-            <div class='card-title' style='color: {state_color};'>🐼 熊猫主力 (MAIN)</div>
-            
-            <div class='card-data'>
-                {logic_html}
-            </div>
-
-            <div class='card-status' style='color: {state_color};'>
-                {state_text}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
+    html_content = f"""
+<div class='tactical-card-base scanline card-3' style='border-color: {state_color};'>
+<style>.card-3::before {{ background-image: url('data:image/png;base64,{bg_img}'); }}</style>
+<div class='card-content'>
+<div class='card-title' style='color: {state_color};'>🐼 熊猫主力 (MAIN)</div>
+<div class='card-data'>
+<div>{current_label}: <span style='color: {state_color};'>{current_val}</span></div>
+<div style='margin-top: 5px; border-top: 1px dashed #555; padding-top:5px;'>{target_label}: {target_val}</div>
+<div style='font-size: 1.2rem; color: #00ffff; margin-top: 10px;'>{dist_label}: <br><span style='font-size: 1.8rem; color: {dist_color};'>{dist_val}</span> {dist_unit}</div>
+</div>
+<div class='card-status' style='color: {state_color};'>{state_text}</div>
+</div>
+</div>
+"""
+    st.markdown(clean_html(html_content), unsafe_allow_html=True)
 
 # ==========================================
 # 📉 LOCKED CHART (DO NOT TOUCH)
