@@ -439,14 +439,17 @@ with col1:
 with col2:
     # Determine which image to use based on status
     if sq_fire:
+        # 只有真正开火（Deploy）时，才使用 Attack 图片
         bg_image = ATTACK_IMAGE
         border_color = "#ff0055"
         glow_color = "255, 0, 85"
     elif sq_alert:
-        bg_image = ATTACK_IMAGE
+        # 预警状态（Alert）现在保持使用 Rest 图片
+        bg_image = REST_IMAGE  # <--- 这里修改了，原为 ATTACK_IMAGE
         border_color = "#ffa500"
         glow_color = "255, 165, 0"
     else:
+        # 正常状态
         bg_image = REST_IMAGE
         border_color = "#00ff00"
         glow_color = "0, 255, 0"
@@ -526,6 +529,7 @@ with col2:
         """, unsafe_allow_html=True)
     
     st.markdown("</div></div>", unsafe_allow_html=True)
+
 
 # === CARD 3: PANDA FORCE ===
 with col3:
